@@ -1,0 +1,149 @@
+# =========================
+# Global / catch-all
+# =========================
+* @mikegtech
+
+
+# =========================
+# Governance & Repo Policy
+# =========================
+.github/CODEOWNERS @mikegtech
+.github/copilot-instructions.md @mikegtech
+.github/instructions/** @mikegtech
+.github/workflows/** @mikegtech
+.github/** @mikegtech
+
+
+# =========================
+# Architecture, ADRs, Runbooks, Documentation
+# =========================
+docs/** @mikegtech
+README.md @mikegtech
+
+
+# =========================
+# Contracts (Kafka schemas, AsyncAPI/OpenAPI/Proto if used) - SPLIT
+# =========================
+contracts/** @mikegtech
+
+
+# =========================
+# Node / TypeScript workspace (pnpm / NestJS)
+# =========================
+package.json @mikegtech
+pnpm-lock.yaml @mikegtech
+pnpm-workspace.yaml @mikegtech
+tsconfig*.json @mikegtech
+.eslintrc* @mikegtech
+.prettierrc* @mikegtech
+.biome.json @mikegtech
+.nvmrc @mikegtech
+.node-version @mikegtech
+
+
+# =========================
+# Shared Node packages (core libraries)
+# =========================
+packages/** @mikegtech
+
+
+# =========================
+# Shared Node packages (transport + DLQ)
+# =========================
+packages/core-kafka/** @mikegtech
+
+# =========================
+# Shared Node packages (tag contract enforcement)
+# =========================
+packages/core-telemetry/** @mikegtech
+
+
+# =========================
+# Kafka Workers (NestJS services)
+# =========================
+apps/workers/** @mikegtech
+
+
+# =========================
+# APIs / Gateways (future)
+# =========================
+apps/api/** @mikegtech
+
+
+# =========================
+# Python workspace (uv) + shared libs + services
+# =========================
+pyproject.toml @mikegtech
+uv.lock @mikegtech
+python/** @mikegtech
+
+
+# =========================
+# Airflow (DAGs + plugins)
+# =========================
+python/dags/** @mikegtech
+python/plugins/** @mikegtech
+python/airflow/** @mikegtech
+
+
+# =========================
+# Infrastructure (local + cloud)
+# =========================
+infra/** @mikegtech
+deploy/** @mikegtech
+k8s/** @mikegtech
+helm/** @mikegtech
+terraform/** @mikegtech
+pulumi/** @mikegtech
+
+
+# =========================
+# Local Compose & Dev Tooling
+# =========================
+**/docker-compose*.yml @mikegtech
+Dockerfile @mikegtech
+**/Dockerfile @mikegtech
+tools/** @mikegtech
+scripts/** @mikegtech
+
+
+# =========================
+# Observability & Telemetry (Datadog / OTel)
+# =========================
+platforms/observability/** @mikegtech
+platforms/** @mikegtech
+**/*datadog*.* @mikegtech
+**/*otel*.* @mikegtech
+**/telemetry/** @mikegtech
+docs/telemetry-tags.md @mikegtech
+
+
+# =========================
+# Secrets (placeholders only; no real secrets)
+# =========================
+.env.example @mikegtech
+**/.env.example @mikegtech
+**/.env.*.example @mikegtech
+platforms/secrets/** @mikegtech
+
+
+# =========================
+# Database schema / migrations
+# =========================
+**/migrations/** @mikegtech
+**/schema/** @mikegtech
+**/*ddl*.* @mikegtech
+
+
+# =========================
+# Tests
+# =========================
+**/test/** @mikegtech
+**/__tests__/** @mikegtech
+
+
+# =========================
+# Security / Compliance docs
+# =========================
+SECURITY.md @mikegtech
+docs/security/** @mikegtech
