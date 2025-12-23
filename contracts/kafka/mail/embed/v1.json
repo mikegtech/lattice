@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lattice.mail.embed.v1",
+  "title": "Mail Embed Event v1",
+  "description": "Chunk with computed embedding vector",
+  "type": "object",
+  "properties": {
+    "provider_message_id": {
+      "type": "string",
+      "description": "Gmail message ID"
+    },
+    "email_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Lattice-assigned unique email ID"
+    },
+    "chunk_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique chunk identifier"
+    },
+    "chunk_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of the chunk text"
+    },
+    "embedding_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique embedding identifier"
+    },
+    "embedding_version": {
+      "type": "string",
+      "description": "Versioned identifier for this embedding (model + params)"
+    },
+    "embedding_model": {
+      "type": "string",
+      "description": "Model used to generate embedding (e.g., text-embedding-3-small)"
+    },
+    "embedding_dimensions": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of dimensions in the embedding vector"
+    },
+    "embedding_vector": {
+      "type": "array",
+      "items": { "type": "number" },
+      "description": "The embedding vector"
+    },
+    "embedded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this embedding was generated"
+    }
+  },
+  "required": [
+    "provider_message_id",
+    "email_id",
+    "chunk_id",
+    "chunk_hash",
+    "embedding_id",
+    "embedding_version",
+    "embedding_model",
+    "embedding_dimensions",
+    "embedding_vector",
+    "embedded_at"
+  ],
+  "additionalProperties": false
+}

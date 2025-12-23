@@ -1,0 +1,8 @@
+import { Module } from '@nestjs/common';
+import { {{pascalName}}Service } from './worker.service.js';
+
+@Module({
+  providers: [{{pascalName}}Service],
+  exports: [{{pascalName}}Service],
+})
+export class WorkerModule {}

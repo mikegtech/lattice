@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lattice.mail.dlq.v1",
+  "title": "Mail Dead Letter Queue Event v1",
+  "description": "Failed message sent to DLQ for investigation and potential replay",
+  "type": "object",
+  "properties": {
+    "dlq_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this DLQ entry"
+    },
+    "original_topic": {
+      "type": "string",
+      "description": "The Kafka topic the message was consumed from"
+    },
+    "original_partition": {
+      "type": "integer",
+      "description": "The partition the message was consumed from"
+    },
+    "original_offset": {
+      "type": "integer",
+      "description": "The offset of the original message"
+    },
+    "original_key": {
+      "type": "string",
+      "description": "The key of the original message"
+    },
+    "original_message": {
+      "type": "object",
+      "description": "The original message envelope and payload"
+    },
+    "failure_stage": {
+      "type": "string",
+      "enum": ["raw", "parse", "chunk", "embed", "upsert", "delete"],
+      "description": "Pipeline stage where failure occurred"
+    },
+    "error_classification": {
+      "type": "string",
+      "enum": ["retryable", "non_retryable", "poison"],
+      "description": "Classification of the error for retry decisions"
+    },
+    "error_code": {
+      "type": "string",
+      "description": "Application-specific error code"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Human-readable error message"
+    },
+    "error_stack": {
+      "type": "string",
+      "description": "Stack trace if available"
+    },
+    "retry_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of retry attempts before DLQ"
+    },
+    "first_failed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the first failure occurred"
+    },
+    "last_failed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the last failure occurred"
+    },
+    "dlq_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the message was sent to DLQ"
+    },
+    "processing_service": {
+      "type": "string",
+      "description": "Service that failed to process the message"
+    },
+    "processing_instance": {
+      "type": "string",
+      "description": "Instance ID of the failed processor"
+    }
+  },
+  "required": [
+    "dlq_id",
+    "original_topic",
+    "original_message",
+    "failure_stage",
+    "error_classification",
+    "error_code",
+    "error_message",
+    "retry_count",
+    "first_failed_at",
+    "dlq_at",
+    "processing_service"
+  ],
+  "additionalProperties": false
+}

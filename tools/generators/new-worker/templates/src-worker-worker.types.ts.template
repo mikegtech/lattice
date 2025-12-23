@@ -1,0 +1,20 @@
+/**
+ * Input type for the {{kebabName}} worker
+ * TODO: Update this with your actual input type from @lattice/core-contracts
+ */
+export interface {{pascalName}}Input {
+  // Define your input schema
+  id: string;
+  // ... add more fields
+}
+
+/**
+ * Output type for the {{kebabName}} worker
+ * TODO: Update this with your actual output type from @lattice/core-contracts
+ */
+export interface {{pascalName}}Output {
+  // Define your output schema
+  id: string;
+  processed_at: string;
+  // ... add more fields
+}

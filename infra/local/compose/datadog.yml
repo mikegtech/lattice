@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  # ==========================================================================
+  # Datadog Agent
+  # ==========================================================================
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    container_name: lattice-datadog-agent
+    environment:
+      # API Key (required)
+      DD_API_KEY: ${DD_API_KEY:-}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+
+      # Unified Service Tagging
+      DD_ENV: dev
+      DD_SERVICE: lattice
+      DD_VERSION: "0.1.0"
+
+      # APM Configuration
+      DD_APM_ENABLED: "true"
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+
+      # Logs Configuration
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE: "name:lattice-datadog-agent"
+
+      # Process monitoring
+      DD_PROCESS_AGENT_ENABLED: "true"
+
+      # Docker integration
+      DD_DOCKER_LABELS_AS_TAGS: '{"com.docker.compose.service":"service"}'
+
+      # Hostname
+      DD_HOSTNAME: lattice-local
+
+      # Additional tags
+      DD_TAGS: "team:platform cloud:local region:local"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./datadog/conf.d:/etc/datadog-agent/conf.d:ro
+    ports:
+      - "8126:8126"  # APM trace receiver
+      - "8125:8125/udp"  # DogStatsD
+    networks:
+      - lattice-network
+
+networks:
+  lattice-network:
+    external: true
+    name: lattice-local_lattice-network

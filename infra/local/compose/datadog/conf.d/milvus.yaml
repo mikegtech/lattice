@@ -1,0 +1,14 @@
+# Datadog OpenMetrics check for Milvus
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://milvus:9091/metrics
+    namespace: milvus
+    metrics:
+      - milvus_*
+
+    # Tags
+    tags:
+      - env:dev
+      - service:milvus
+      - team:platform

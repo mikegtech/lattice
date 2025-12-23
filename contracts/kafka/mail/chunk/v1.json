@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lattice.mail.chunk.v1",
+  "title": "Mail Chunk Event v1",
+  "description": "Text chunk ready for embedding",
+  "type": "object",
+  "properties": {
+    "provider_message_id": {
+      "type": "string",
+      "description": "Gmail message ID"
+    },
+    "email_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Lattice-assigned unique email ID"
+    },
+    "content_hash": {
+      "type": "string",
+      "description": "Parent email content hash"
+    },
+    "chunk_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique chunk identifier"
+    },
+    "chunk_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of chunk_text for deduplication"
+    },
+    "chunk_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Position of this chunk within the source"
+    },
+    "total_chunks": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total number of chunks for this source"
+    },
+    "chunk_text": {
+      "type": "string",
+      "description": "The actual text content of the chunk"
+    },
+    "char_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Character count of chunk_text"
+    },
+    "token_count_estimate": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Estimated token count (model-specific)"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": ["body", "attachment", "subject"],
+      "description": "Source of this chunk"
+    },
+    "attachment_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "If source_type is attachment, the attachment ID"
+    },
+    "section_type": {
+      "type": "string",
+      "enum": ["header", "greeting", "body", "signature", "quote", "attachment_text"],
+      "description": "Semantic section type within the email"
+    },
+    "chunked_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this chunk was created"
+    }
+  },
+  "required": [
+    "provider_message_id",
+    "email_id",
+    "content_hash",
+    "chunk_id",
+    "chunk_hash",
+    "chunk_index",
+    "total_chunks",
+    "chunk_text",
+    "char_count",
+    "source_type",
+    "chunked_at"
+  ],
+  "additionalProperties": false
+}

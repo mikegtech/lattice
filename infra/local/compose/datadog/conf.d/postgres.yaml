@@ -1,0 +1,22 @@
+# Datadog PostgreSQL Integration
+init_config:
+
+instances:
+  - host: postgres
+    port: 5432
+    username: lattice
+    password: lattice_dev_password
+    dbname: lattice
+
+    # Collect database-level metrics
+    collect_database_size_metrics: true
+    collect_default_database: true
+
+    # Query metrics (requires pg_stat_statements)
+    deep_database_monitoring: false
+
+    # Tags
+    tags:
+      - env:dev
+      - service:postgres
+      - team:platform

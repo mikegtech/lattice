@@ -1,0 +1,46 @@
+[project]
+name = "lattice"
+version = "0.1.0"
+description = "Lattice email indexing pipeline - Python components"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "python/libs/*",
+    "python/services/*",
+]
+
+[tool.uv.sources]
+lattice-common = { workspace = true }
+lattice-contracts = { workspace = true }
+lattice-mail = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true

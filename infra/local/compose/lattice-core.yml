@@ -1,0 +1,232 @@
+version: "3.8"
+
+x-common-env: &common-env
+  ENV: dev
+  NODE_ENV: development
+  LOG_LEVEL: debug
+  TEAM: platform
+  CLOUD: gcp
+  REGION: us-central1
+  DOMAIN: mail
+  PIPELINE: mail-indexing
+
+x-kafka-env: &kafka-env
+  KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-pkc-xxxxx.us-central1.gcp.confluent.cloud:9092}
+  KAFKA_SECURITY_PROTOCOL: SASL_SSL
+  KAFKA_SASL_MECHANISM: PLAIN
+  KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-}
+  KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:-}
+
+x-postgres-env: &postgres-env
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: lattice
+  POSTGRES_USER: lattice
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lattice_dev_password}
+
+services:
+  # ==========================================================================
+  # PostgreSQL - System of Record
+  # ==========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: lattice-postgres
+    environment:
+      POSTGRES_USER: lattice
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lattice_dev_password}
+      POSTGRES_DB: lattice
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ../postgres/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lattice -d lattice"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Milvus - Vector Database
+  # ==========================================================================
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: lattice-etcd
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - lattice-network
+
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: lattice-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - lattice-network
+
+  milvus:
+    image: milvusdb/milvus:v2.3.4
+    container_name: lattice-milvus
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Airflow - Orchestration
+  # ==========================================================================
+  airflow-init:
+    image: apache/airflow:2.8.0-python3.11
+    container_name: lattice-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-your-secret-key-here}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lattice-network
+
+  airflow-webserver:
+    image: apache/airflow:2.8.0-python3.11
+    container_name: lattice-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-your-secret-key-here}
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    volumes:
+      - ../../../python/dags:/opt/airflow/dags:ro
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - lattice-network
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.0-python3.11
+    container_name: lattice-airflow-scheduler
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-your-secret-key-here}
+    volumes:
+      - ../../../python/dags:/opt/airflow/dags:ro
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail Parser Worker
+  # ==========================================================================
+  mail-parser:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-parser/Dockerfile
+    container_name: lattice-mail-parser
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env]
+      SERVICE_NAME: mail-parser
+      SERVICE_VERSION: "0.1.0"
+      KAFKA_GROUP_ID: mail-parser-group
+      DD_ENV: dev
+      DD_SERVICE: mail-parser
+      DD_VERSION: "0.1.0"
+      DD_AGENT_HOST: datadog-agent
+      DD_TRACE_AGENT_PORT: 8126
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+volumes:
+  postgres_data:
+  etcd_data:
+  minio_data:
+  milvus_data:
+  airflow_logs:
+
+networks:
+  lattice-network:
+    driver: bridge

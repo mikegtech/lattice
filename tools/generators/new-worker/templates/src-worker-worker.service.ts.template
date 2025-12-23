@@ -1,0 +1,67 @@
+import { Injectable, Inject } from '@nestjs/common';
+import {
+  BaseWorkerService,
+  KafkaService,
+  TelemetryService,
+  LoggerService,
+  LOGGER,
+  WORKER_CONFIG,
+  type WorkerConfig,
+  type WorkerContext,
+  classifyError,
+} from '@lattice/worker-base';
+import type { {{pascalName}}Input, {{pascalName}}Output } from './worker.types.js';
+
+@Injectable()
+export class {{pascalName}}Service extends BaseWorkerService<{{pascalName}}Input, {{pascalName}}Output> {
+  constructor(
+    kafka: KafkaService,
+    telemetry: TelemetryService,
+    @Inject(LOGGER) logger: LoggerService,
+    @Inject(WORKER_CONFIG) config: WorkerConfig,
+    // Add your dependencies here
+  ) {
+    super(kafka, telemetry, logger, config);
+  }
+
+  protected async process(
+    payload: {{pascalName}}Input,
+    context: WorkerContext,
+  ): Promise<
+    | { status: 'success'; output: {{pascalName}}Output }
+    | { status: 'skip'; reason: string }
+    | { status: 'retry'; reason: string }
+    | { status: 'dlq'; reason: string; error: Error }
+  > {
+    const logContext = {
+      trace_id: context.traceId,
+      stage: '{{kebabName}}',
+    };
+
+    this.logger.info('Processing message', logContext);
+    this.telemetry.increment('messages.received', 1, { stage: '{{kebabName}}' });
+
+    try {
+      // TODO: Implement your processing logic here
+      const result: {{pascalName}}Output = {
+        // ... build your output
+      };
+
+      this.telemetry.increment('messages.success', 1, { stage: '{{kebabName}}' });
+      this.logger.info('Message processed successfully', logContext);
+
+      return { status: 'success', output: result };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.telemetry.increment('messages.error', 1, { stage: '{{kebabName}}' });
+      this.logger.error('Failed to process message', err.stack, JSON.stringify(logContext));
+
+      const classification = classifyError(err);
+      if (classification === 'retryable') {
+        return { status: 'retry', reason: err.message };
+      }
+
+      return { status: 'dlq', reason: err.message, error: err };
+    }
+  }
+}
