@@ -25,7 +25,7 @@
     },
     "chunk_hash": {
       "type": "string",
-      "description": "SHA-256 hash of chunk_text for deduplication"
+      "description": "SHA-256 hash of chunk_text + versioning for deduplication"
     },
     "chunk_index": {
       "type": "integer",
@@ -66,6 +66,14 @@
       "enum": ["header", "greeting", "body", "signature", "quote", "attachment_text"],
       "description": "Semantic section type within the email"
     },
+    "chunking_version": {
+      "type": "string",
+      "description": "Version of the chunking algorithm used"
+    },
+    "normalization_version": {
+      "type": "string",
+      "description": "Version of text normalization applied"
+    },
     "chunked_at": {
       "type": "string",
       "format": "date-time",
@@ -83,6 +91,8 @@
     "chunk_text",
     "char_count",
     "source_type",
+    "chunking_version",
+    "normalization_version",
     "chunked_at"
   ],
   "additionalProperties": false

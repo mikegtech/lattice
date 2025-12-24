@@ -138,7 +138,7 @@ export interface MailChunkPayload {
   content_hash: string;
   /** Unique chunk ID */
   chunk_id: string;
-  /** SHA-256 hash of chunk text */
+  /** SHA-256 hash of chunk text + versioning for dedup */
   chunk_hash: string;
   /** Position within source */
   chunk_index: number;
@@ -156,7 +156,33 @@ export interface MailChunkPayload {
   attachment_id?: string;
   /** Semantic section type */
   section_type?: SectionType;
+  /** Chunking algorithm version */
+  chunking_version: string;
+  /** Text normalization version */
+  normalization_version: string;
   /** When chunk was created */
+  chunked_at: string;
+}
+
+/**
+ * Summary event emitted after all chunks are created
+ */
+export interface MailChunkSummaryPayload {
+  /** Lattice email ID */
+  email_id: string;
+  /** Parent email content hash */
+  content_hash: string;
+  /** Total number of chunks created */
+  chunk_count: number;
+  /** List of chunk hashes for verification */
+  chunk_hashes: string[];
+  /** Chunking algorithm version */
+  chunking_version: string;
+  /** Text normalization version */
+  normalization_version: string;
+  /** Section breakdown */
+  section_counts: Record<SectionType, number>;
+  /** When chunking completed */
   chunked_at: string;
 }
 
