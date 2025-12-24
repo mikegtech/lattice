@@ -53,24 +53,42 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     private readonly telemetry: TelemetryService,
     @Inject(LOGGER) private readonly logger: LoggerService,
   ) {
-    this.expectedSchemaVersion = options.expectedSchemaVersion;
+    if (options.expectedSchemaVersion) {
+      this.expectedSchemaVersion = options.expectedSchemaVersion;
+    }
 
-    this.kafka = new Kafka({
+    const kafkaConfig: import('kafkajs').KafkaConfig = {
       clientId: config.kafka.clientId,
       brokers: config.kafka.brokers,
       ssl: config.kafka.ssl,
-      sasl: config.kafka.sasl
-        ? {
-            mechanism: config.kafka.sasl.mechanism,
-            username: config.kafka.sasl.username,
-            password: config.kafka.sasl.password,
-          }
-        : undefined,
       retry: {
         retries: config.kafka.maxRetries,
         initialRetryTime: config.kafka.retryBackoffMs,
       },
-    });
+    };
+    if (config.kafka.sasl) {
+      const mechanism = config.kafka.sasl.mechanism;
+      if (mechanism === 'plain') {
+        kafkaConfig.sasl = {
+          mechanism: 'plain' as const,
+          username: config.kafka.sasl.username,
+          password: config.kafka.sasl.password,
+        };
+      } else if (mechanism === 'scram-sha-256') {
+        kafkaConfig.sasl = {
+          mechanism: 'scram-sha-256' as const,
+          username: config.kafka.sasl.username,
+          password: config.kafka.sasl.password,
+        };
+      } else if (mechanism === 'scram-sha-512') {
+        kafkaConfig.sasl = {
+          mechanism: 'scram-sha-512' as const,
+          username: config.kafka.sasl.username,
+          password: config.kafka.sasl.password,
+        };
+      }
+    }
+    this.kafka = new Kafka(kafkaConfig);
 
     this.producer = this.kafka.producer({
       idempotent: true,
@@ -173,16 +191,16 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     const { topic, partition, message } = payload;
     const startTime = Date.now();
 
-    const headers = this.extractHeaders(message);
+    const headers = this.extractHeaders(message as { headers?: Record<string, Buffer | string | undefined> });
     const traceId = headers['x-datadog-trace-id'];
     const spanId = headers['x-datadog-parent-id'];
 
-    const logContext = {
+    const logContext: Record<string, unknown> = {
       topic,
       partition,
       offset: message.offset,
-      trace_id: traceId,
     };
+    if (traceId) logContext['trace_id'] = traceId;
 
     try {
       const rawValue = message.value?.toString();
@@ -201,9 +219,9 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         offset: message.offset,
         timestamp: message.timestamp,
         headers,
-        traceId,
-        spanId,
       };
+      if (traceId) kafkaMessage.traceId = traceId;
+      if (spanId) kafkaMessage.spanId = spanId;
 
       this.telemetry.increment('messages.received');
 
@@ -218,7 +236,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
             ...logContext,
             duration_ms: duration,
             message_id: envelope.message_id,
-          });
+          } as import('../telemetry/logger.service.js').LogContext);
           break;
 
         case 'skip':
@@ -227,7 +245,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
             ...logContext,
             reason: result.reason,
             message_id: envelope.message_id,
-          });
+          } as import('../telemetry/logger.service.js').LogContext);
           break;
 
         case 'dlq':
@@ -325,7 +343,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const traceContext = this.telemetry.getTraceContext();
 
-    const envelope = createEnvelope({
+    const envelopeOptions: Parameters<typeof createEnvelope<T>>[0] = {
       tenant_id: options.tenantId,
       account_id: options.accountId,
       domain: options.domain,
@@ -336,11 +354,12 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         version: this.config.version,
       },
       payload,
-      trace_id: traceContext.trace_id,
-      span_id: traceContext.span_id,
       data_classification: 'confidential',
       pii: { contains_pii: true },
-    });
+    };
+    if (traceContext.trace_id) envelopeOptions.trace_id = traceContext.trace_id;
+    if (traceContext.span_id) envelopeOptions.span_id = traceContext.span_id;
+    const envelope = createEnvelope(envelopeOptions);
 
     const headers: Record<string, string> = {
       'x-lattice-service': this.config.service,

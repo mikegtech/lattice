@@ -118,7 +118,7 @@ export function filterMetricTags(
       filtered[key] = value;
     }
   }
-  return filtered as MetricTags;
+  return filtered as unknown as MetricTags;
 }
 
 /**

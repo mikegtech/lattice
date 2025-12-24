@@ -120,5 +120,7 @@ export function skip(reason: string): { status: 'skip'; reason: string } {
  * Create a success result
  */
 export function success<T>(output?: T): { status: 'success'; output?: T } {
-  return { status: 'success', output };
+  const result: { status: 'success'; output?: T } = { status: 'success' };
+  if (output !== undefined) result.output = output;
+  return result;
 }

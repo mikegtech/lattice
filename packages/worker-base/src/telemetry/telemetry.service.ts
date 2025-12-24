@@ -67,8 +67,8 @@ export class TelemetryService {
    */
   increment(name: string, value = 1, tags?: Record<string, string>): void {
     const fullTags = this.getMetricTags(tags);
-    // @ts-expect-error dogstatsd not in public API
-    this.tracer?.dogstatsd?.increment(`lattice.${name}`, value, this.formatTags(fullTags));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.tracer as any)?.dogstatsd?.increment(`lattice.${name}`, value, this.formatTags(fullTags));
   }
 
   /**
@@ -76,8 +76,8 @@ export class TelemetryService {
    */
   gauge(name: string, value: number, tags?: Record<string, string>): void {
     const fullTags = this.getMetricTags(tags);
-    // @ts-expect-error dogstatsd not in public API
-    this.tracer?.dogstatsd?.gauge(`lattice.${name}`, value, this.formatTags(fullTags));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.tracer as any)?.dogstatsd?.gauge(`lattice.${name}`, value, this.formatTags(fullTags));
   }
 
   /**
@@ -85,8 +85,8 @@ export class TelemetryService {
    */
   timing(name: string, durationMs: number, tags?: Record<string, string>): void {
     const fullTags = this.getMetricTags(tags);
-    // @ts-expect-error dogstatsd not in public API
-    this.tracer?.dogstatsd?.histogram(`lattice.${name}`, durationMs, this.formatTags(fullTags));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.tracer as any)?.dogstatsd?.histogram(`lattice.${name}`, durationMs, this.formatTags(fullTags));
   }
 
   /**
@@ -98,11 +98,12 @@ export class TelemetryService {
     fn: (span: Span) => Promise<T>,
   ): Promise<T> {
     if (!this.tracer) {
-      // @ts-expect-error stub span when tracer not available
-      return fn({ setTag: () => {} });
+      // Stub span when tracer not available
+      return fn({ setTag: () => {} } as unknown as Span);
     }
 
-    return this.tracer.trace(name, { tags }, async (span) => {
+    return this.tracer.trace(name, { tags }, async (span: Span | undefined) => {
+      if (!span) throw new Error('Span not created');
       try {
         return await fn(span);
       } catch (error) {

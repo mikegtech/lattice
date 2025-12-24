@@ -99,7 +99,7 @@ class LatticeProducerImpl implements LatticeProducer {
       message_id: envelope.message_id,
       account_id: envelope.account_id,
       stage: envelope.stage,
-      trace_id: traceContext.trace_id,
+      ...(traceContext.trace_id && { trace_id: traceContext.trace_id }),
     });
 
     return result;

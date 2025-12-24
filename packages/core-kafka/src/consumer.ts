@@ -80,8 +80,8 @@ class LatticeConsumerImpl implements LatticeConsumer {
     });
     this.logger = options.logger;
     this.topics = options.topics;
-    this.dlqPublisher = options.dlqPublisher;
-    this.expectedSchemaVersion = options.expectedSchemaVersion;
+    if (options.dlqPublisher) this.dlqPublisher = options.dlqPublisher;
+    if (options.expectedSchemaVersion) this.expectedSchemaVersion = options.expectedSchemaVersion;
     this.maxRetries = options.maxRetries ?? 3;
     this.retryBackoffMs = options.retryBackoffMs ?? 1000;
   }
@@ -152,15 +152,15 @@ class LatticeConsumerImpl implements LatticeConsumer {
       offset: message.offset,
       timestamp: message.timestamp,
       headers,
-      trace_id: traceContext.trace_id,
-      span_id: traceContext.span_id,
       logger: this.logger.child({
         topic,
         partition,
         offset: message.offset,
-        trace_id: traceContext.trace_id,
+        ...(traceContext.trace_id && { trace_id: traceContext.trace_id }),
       }),
     };
+    if (traceContext.trace_id) context.trace_id = traceContext.trace_id;
+    if (traceContext.span_id) context.span_id = traceContext.span_id;
 
     try {
       // Parse and validate envelope
@@ -319,7 +319,7 @@ class LatticeConsumerImpl implements LatticeConsumer {
       return;
     }
 
-    await this.dlqPublisher.publish({
+    const dlqMessage: import('./dlq.js').DLQMessage = {
       originalTopic: context.topic,
       originalPartition: context.partition,
       originalOffset: context.offset,
@@ -330,10 +330,11 @@ class LatticeConsumerImpl implements LatticeConsumer {
         ? error.code
         : 'UNKNOWN',
       errorMessage: error.message,
-      errorStack: error.stack,
       retryCount: this.maxRetries,
       processingService: context.headers['x-lattice-service'] ?? 'unknown',
-    });
+    };
+    if (error.stack) dlqMessage.errorStack = error.stack;
+    await this.dlqPublisher.publish(dlqMessage);
 
     context.logger.warn('Message sent to DLQ', {
       message_id: envelope.message_id,
@@ -352,7 +353,7 @@ class LatticeConsumerImpl implements LatticeConsumer {
       return;
     }
 
-    await this.dlqPublisher.publish({
+    const dlqMessage: import('./dlq.js').DLQMessage = {
       originalTopic: context.topic,
       originalPartition: context.partition,
       originalOffset: context.offset,
@@ -365,10 +366,11 @@ class LatticeConsumerImpl implements LatticeConsumer {
       errorClassification: classification,
       errorCode: 'PARSE_ERROR',
       errorMessage: error.message,
-      errorStack: error.stack,
       retryCount: 0,
       processingService: context.headers['x-lattice-service'] ?? 'unknown',
-    });
+    };
+    if (error.stack) dlqMessage.errorStack = error.stack;
+    await this.dlqPublisher.publish(dlqMessage);
   }
 
   private sleep(ms: number): Promise<void> {

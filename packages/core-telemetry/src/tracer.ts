@@ -26,8 +26,7 @@ export function initTracer(options: TracerOptions): Tracer {
     env: options.env,
     logInjection: options.logInjection ?? true,
     runtimeMetrics: options.runtimeMetrics ?? true,
-    enabled: options.enabled ?? true,
-  });
+  } as Parameters<typeof tracer.default.init>[0]);
 
   return tracerInstance;
 }
@@ -59,11 +58,16 @@ export async function withSpan<T>(
 ): Promise<T> {
   const tracer = getTracer();
 
-  return tracer.trace(operationName, {
-    resource: options.resource,
-    type: options.type,
-    tags: options.tags,
-  }, async (span) => {
+  // Build trace options only with defined values to satisfy exactOptionalPropertyTypes
+  const traceOpts: Record<string, unknown> = {};
+  if (options.resource !== undefined) traceOpts['resource'] = options.resource;
+  if (options.type !== undefined) traceOpts['type'] = options.type;
+  if (options.tags !== undefined) traceOpts['tags'] = options.tags;
+
+  return tracer.trace(operationName, traceOpts, async (span) => {
+    if (!span) {
+      throw new Error('Span not created');
+    }
     try {
       return await fn(span);
     } catch (error) {
@@ -103,8 +107,8 @@ export function extractTraceContext(headers: Record<string, string | Buffer | un
   const traceId = headers['x-datadog-trace-id'];
   const spanId = headers['x-datadog-parent-id'];
 
-  return {
-    trace_id: traceId ? String(traceId) : undefined,
-    span_id: spanId ? String(spanId) : undefined,
-  };
+  const result: { trace_id?: string; span_id?: string } = {};
+  if (traceId) result.trace_id = String(traceId);
+  if (spanId) result.span_id = String(spanId);
+  return result;
 }

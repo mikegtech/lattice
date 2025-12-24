@@ -25,7 +25,7 @@ const workerEnvSchema = z.object({
   KAFKA_SASL_MECHANISM: z.enum(['plain', 'scram-sha-256', 'scram-sha-512']).default('plain'),
   KAFKA_SASL_USERNAME: z.string().optional(),
   KAFKA_SASL_PASSWORD: z.string().optional(),
-  KAFKA_SSL: z.string().transform((v) => v === 'true').default('true'),
+  KAFKA_SSL: z.string().transform((v: string) => v === 'true').default('true'),
   KAFKA_TOPIC_IN: z.string(),
   KAFKA_TOPIC_OUT: z.string().optional(),
   KAFKA_TOPIC_DLQ: z.string(),
@@ -101,26 +101,29 @@ function validateAndTransform(): WorkerConfig {
     domain: parsed.LATTICE_DOMAIN,
     stage: parsed.LATTICE_STAGE,
 
-    kafka: {
-      brokers: parsed.KAFKA_BROKERS.split(','),
-      clientId: parsed.KAFKA_CLIENT_ID,
-      groupId: parsed.KAFKA_GROUP_ID,
-      ssl: parsed.KAFKA_SSL,
-      sasl: parsed.KAFKA_SASL_USERNAME && parsed.KAFKA_SASL_PASSWORD
-        ? {
-            mechanism: parsed.KAFKA_SASL_MECHANISM,
-            username: parsed.KAFKA_SASL_USERNAME,
-            password: parsed.KAFKA_SASL_PASSWORD,
-          }
-        : undefined,
-      topicIn: parsed.KAFKA_TOPIC_IN,
-      topicOut: parsed.KAFKA_TOPIC_OUT,
-      topicDlq: parsed.KAFKA_TOPIC_DLQ,
-      maxRetries: parsed.KAFKA_MAX_RETRIES,
-      retryBackoffMs: parsed.KAFKA_RETRY_BACKOFF_MS,
-    },
+    kafka: (() => {
+      const kafkaConfig: WorkerConfig['kafka'] = {
+        brokers: parsed.KAFKA_BROKERS.split(','),
+        clientId: parsed.KAFKA_CLIENT_ID,
+        groupId: parsed.KAFKA_GROUP_ID,
+        ssl: parsed.KAFKA_SSL,
+        topicIn: parsed.KAFKA_TOPIC_IN,
+        topicDlq: parsed.KAFKA_TOPIC_DLQ,
+        maxRetries: parsed.KAFKA_MAX_RETRIES,
+        retryBackoffMs: parsed.KAFKA_RETRY_BACKOFF_MS,
+      };
+      if (parsed.KAFKA_TOPIC_OUT) kafkaConfig.topicOut = parsed.KAFKA_TOPIC_OUT;
+      if (parsed.KAFKA_SASL_USERNAME && parsed.KAFKA_SASL_PASSWORD) {
+        kafkaConfig.sasl = {
+          mechanism: parsed.KAFKA_SASL_MECHANISM,
+          username: parsed.KAFKA_SASL_USERNAME,
+          password: parsed.KAFKA_SASL_PASSWORD,
+        };
+      }
+      return kafkaConfig;
+    })(),
 
-    databaseUrl: parsed.DATABASE_URL,
+    ...(parsed.DATABASE_URL && { databaseUrl: parsed.DATABASE_URL }),
     logLevel: parsed.LOG_LEVEL,
     healthPort: parsed.HEALTH_PORT,
   };
@@ -134,7 +137,7 @@ export class WorkerConfigModule {
       module: WorkerConfigModule,
       imports: [
         ConfigModule.forRoot({
-          envFilePath: options.envFilePath,
+          ...(options.envFilePath && { envFilePath: options.envFilePath }),
           isGlobal: true,
         }),
       ],

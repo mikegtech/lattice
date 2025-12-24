@@ -121,7 +121,7 @@ class PinoLogger implements Logger {
 }
 
 export function createLogger(options: LoggerOptions): Logger {
-  validateTags(options.serviceTags, 'logger');
+  validateTags(options.serviceTags as unknown as Record<string, string | undefined>, 'logger');
 
   const pinoOptions: pino.LoggerOptions = {
     level: options.level ?? 'info',
@@ -148,6 +148,6 @@ export function createLogger(options: LoggerOptions): Logger {
     };
   }
 
-  const pinoInstance = pino(pinoOptions);
+  const pinoInstance = (pino as unknown as (opts: pino.LoggerOptions) => pino.Logger)(pinoOptions);
   return new PinoLogger(pinoInstance, options.serviceTags);
 }

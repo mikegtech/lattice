@@ -14,6 +14,7 @@ export {
   type Envelope,
   type EnvelopeSource,
   type PiiInfo,
+  type CreateEnvelopeOptions,
 } from './envelope.js';
 export { TOPICS, type TopicName } from './topics.js';
 export {

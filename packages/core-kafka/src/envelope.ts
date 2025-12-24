@@ -43,10 +43,8 @@ export interface CreateEnvelopeOptions<T> {
 }
 
 export function createEnvelope<T>(options: CreateEnvelopeOptions<T>): Envelope<T> {
-  return {
+  const envelope: Envelope<T> = {
     message_id: uuidv4(),
-    trace_id: options.trace_id,
-    span_id: options.span_id,
     tenant_id: options.tenant_id,
     account_id: options.account_id,
     domain: options.domain,
@@ -58,6 +56,9 @@ export function createEnvelope<T>(options: CreateEnvelopeOptions<T>): Envelope<T
     pii: options.pii ?? { contains_pii: true, pii_fields: ['payload'] },
     payload: options.payload,
   };
+  if (options.trace_id) envelope.trace_id = options.trace_id;
+  if (options.span_id) envelope.span_id = options.span_id;
+  return envelope;
 }
 
 const REQUIRED_ENVELOPE_FIELDS = [
