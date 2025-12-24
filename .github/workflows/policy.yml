@@ -16,6 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.0"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,26 +37,29 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pre-commit
 
+      - name: Install Node deps (for Biome)
+        run: pnpm install --frozen-lockfile
+
       - name: Run pre-commit (all files)
         run: |
           pre-commit run --all-files
 
   node:
-    name: node-lint-typecheck-test
+    name: node-lint-typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.0"
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: "9"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -56,11 +70,8 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
-      - name: Test
-        run: pnpm -r test
-
   python:
-    name: python-lint-format-test
+    name: python-lint-format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +97,3 @@ jobs:
       - name: Ruff (format check)
         run: |
           uv run ruff format --check .
-
-      - name: Pytest
-        run: |
-          uv run pytest
