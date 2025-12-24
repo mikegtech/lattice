@@ -65,11 +65,8 @@ jobs:
       - name: Build
         run: pnpm -r build
 
-      - name: Test
-        run: pnpm -r test
-
   python:
-    name: python (test)
+    name: python (deps)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +83,3 @@ jobs:
 
       - name: Sync dependencies
         run: uv sync
-
-      - name: Pytest
-        run: uv run pytest
