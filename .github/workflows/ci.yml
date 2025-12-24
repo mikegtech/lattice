@@ -20,11 +20,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: "8.15.0"
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Activate pnpm from packageManager
+        run: corepack prepare pnpm@8.15.0 --activate
+
+      - name: Verify pnpm
+        run: pnpm -v
 
       - name: Set up Python
         uses: actions/setup-python@v5
