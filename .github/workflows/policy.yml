@@ -1,4 +1,4 @@
-name: ci
+name: policy
 
 on:
   pull_request:
@@ -6,25 +6,15 @@ on:
     branches: [ main ]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: policy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   precommit:
-    name: pre-commit (policy)
+    name: pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: "9"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,14 +26,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pre-commit
 
-      - name: Install Node deps (for Biome hook)
-        run: pnpm install --frozen-lockfile
-
       - name: Run pre-commit (all files)
-        run: pre-commit run --all-files
+        run: |
+          pre-commit run --all-files
 
   node:
-    name: node (build + test)
+    name: node-lint-typecheck-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +40,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -61,14 +50,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm -r build
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Typecheck
+        run: pnpm -r typecheck
 
       - name: Test
         run: pnpm -r test
 
   python:
-    name: python (test)
+    name: python-lint-format-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +76,17 @@ jobs:
           python -m pip install uv
 
       - name: Sync dependencies
-        run: uv sync
+        run: |
+          uv sync
+
+      - name: Ruff (lint)
+        run: |
+          uv run ruff check .
+
+      - name: Ruff (format check)
+        run: |
+          uv run ruff format --check .
 
       - name: Pytest
-        run: uv run pytest
+        run: |
+          uv run pytest
