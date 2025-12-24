@@ -130,11 +130,20 @@ lattice/
 
 ### Pre-commit Hooks
 
-This repository uses `pre-commit` for local guardrails.
+This repository uses `pre-commit` for local guardrails including secret detection.
 
 ```bash
 uv pip install pre-commit
 pre-commit install
+```
+
+### Secrets Baseline
+
+We use `detect-secrets` to prevent accidental commits of API keys, passwords, and other sensitive data. The `.secrets.baseline` file tracks known false positives so they don't block commits.
+
+To regenerate the baseline (e.g., after adding new false positives):
+```bash
+detect-secrets scan > .secrets.baseline
 ```
 
 ### Adding a new worker
