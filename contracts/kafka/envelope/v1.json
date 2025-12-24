@@ -24,7 +24,7 @@
 		},
 		"account_id": {
 			"type": "string",
-			"description": "Account identifier (e.g., Gmail account)"
+			"description": "Account identifier (logical mailbox id, unique per tenant)"
 		},
 		"domain": {
 			"type": "string",
@@ -48,6 +48,7 @@
 		},
 		"source": {
 			"type": "object",
+			"description": "Service origin information",
 			"properties": {
 				"service": {
 					"type": "string",
@@ -63,6 +64,35 @@
 				}
 			},
 			"required": ["service", "version"],
+			"additionalProperties": false
+		},
+		"provider_source": {
+			"type": "object",
+			"description": "Provider/data source information for ingested content",
+			"properties": {
+				"provider": {
+					"type": "string",
+					"enum": ["gmail", "imap"],
+					"description": "Mail provider type"
+				},
+				"account_id": {
+					"type": "string",
+					"description": "Logical mailbox identifier (same as envelope.account_id)"
+				},
+				"scope": {
+					"type": "string",
+					"description": "Gmail label/query scope or IMAP folder (e.g., 'INBOX', 'label:important')"
+				},
+				"provider_message_id": {
+					"type": "string",
+					"description": "Provider-specific stable message identifier"
+				},
+				"provider_thread_id": {
+					"type": "string",
+					"description": "Provider-specific thread identifier (Gmail only; null/absent for IMAP)"
+				}
+			},
+			"required": ["provider", "account_id", "provider_message_id"],
 			"additionalProperties": false
 		},
 		"data_classification": {
