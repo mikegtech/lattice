@@ -84,12 +84,12 @@ export abstract class BaseWorkerService<TIn, TOut = void>
 
   private async handleMessage(message: KafkaMessage<TIn>): Promise<ProcessResult> {
     const context: WorkerContext = {
-      traceId: message.traceId,
-      spanId: message.spanId,
       topic: message.topic,
       partition: message.partition,
       offset: message.offset,
     };
+    if (message.traceId) context.traceId = message.traceId;
+    if (message.spanId) context.spanId = message.spanId;
 
     const result = await this.telemetry.withSpan(
       `${this.config.service}.process`,

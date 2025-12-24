@@ -1,6 +1,6 @@
 // Config module
-export { WorkerConfigModule, WorkerConfig, WORKER_CONFIG } from './config/config.module.js';
-export type { WorkerConfigOptions } from './config/config.module.js';
+export { WorkerConfigModule, WORKER_CONFIG } from './config/config.module.js';
+export type { WorkerConfig, WorkerConfigOptions } from './config/config.module.js';
 
 // Kafka module
 export { KafkaModule } from './kafka/kafka.module.js';
@@ -19,7 +19,8 @@ export { HealthService } from './health/health.service.js';
 
 // Lifecycle module
 export { LifecycleModule } from './lifecycle/lifecycle.module.js';
-export { LifecycleService, ShutdownSignal } from './lifecycle/lifecycle.service.js';
+export { LifecycleService } from './lifecycle/lifecycle.service.js';
+export type { ShutdownSignal } from './lifecycle/lifecycle.service.js';
 
 // Errors
 export {
@@ -27,8 +28,8 @@ export {
   RetryableWorkerError,
   NonRetryableWorkerError,
   classifyError,
-  ErrorClassification,
 } from './errors/error-classifier.js';
+export type { ErrorClassification } from './errors/error-classifier.js';
 
 // Base worker service
 export { BaseWorkerService } from './kafka/base-worker.service.js';

@@ -1,4 +1,4 @@
-import { z, type ZodSchema } from 'zod';
+import { type ZodSchema } from 'zod';
 import { MissingEnvVarError, ValidationError } from './errors.js';
 import {
   baseConfigSchema,
@@ -18,18 +18,18 @@ export interface ConfigLoaderOptions {
   env?: Record<string, string | undefined>;
 }
 
-type EnvVarDef = {
+interface EnvVarDef {
   key: string;
   required?: boolean;
   default?: string | number | boolean;
-  transform?: (value: string) => unknown;
-};
+  transform?: (value: string) => string | number | boolean;
+}
 
 function getEnvVar(
   env: Record<string, string | undefined>,
   def: EnvVarDef,
   strict: boolean
-): unknown {
+): string | number | boolean | undefined {
   const value = env[def.key];
 
   if (value === undefined || value === '') {
@@ -60,12 +60,17 @@ export function loadConfig(options: ConfigLoaderOptions = {}): FullConfig {
   const env = options.env ?? process.env;
   const strict = options.strict ?? false;
 
+  // Extract commonly reused values first
+  const serviceName = String(getEnvVar(env, { key: 'SERVICE_NAME', required: true }, strict) ?? '');
+  const serviceVersion = String(getEnvVar(env, { key: 'SERVICE_VERSION', required: true }, strict) ?? '');
+  const envName = String(getEnvVar(env, { key: 'ENV', default: 'dev' }, strict) ?? 'dev');
+
   const baseRaw = {
-    env: getEnvVar(env, { key: 'ENV', default: 'dev' }, strict),
+    env: envName,
     nodeEnv: getEnvVar(env, { key: 'NODE_ENV', default: 'development' }, strict),
     service: {
-      name: getEnvVar(env, { key: 'SERVICE_NAME', required: true }, strict),
-      version: getEnvVar(env, { key: 'SERVICE_VERSION', required: true }, strict),
+      name: serviceName,
+      version: serviceVersion,
       team: getEnvVar(env, { key: 'TEAM', default: 'platform' }, strict),
       cloud: getEnvVar(env, { key: 'CLOUD', default: 'gcp' }, strict),
       region: getEnvVar(env, { key: 'REGION', default: 'us-central1' }, strict),
@@ -81,8 +86,8 @@ export function loadConfig(options: ConfigLoaderOptions = {}): FullConfig {
     saslMechanism: getEnvVar(env, { key: 'KAFKA_SASL_MECHANISM', default: 'PLAIN' }, strict),
     saslUsername: getEnvVar(env, { key: 'KAFKA_SASL_USERNAME' }, strict),
     saslPassword: getEnvVar(env, { key: 'KAFKA_SASL_PASSWORD' }, strict),
-    clientId: getEnvVar(env, { key: 'KAFKA_CLIENT_ID', default: baseRaw.service.name }, strict),
-    groupId: getEnvVar(env, { key: 'KAFKA_GROUP_ID', default: `${baseRaw.service.name}-group` }, strict),
+    clientId: getEnvVar(env, { key: 'KAFKA_CLIENT_ID', default: serviceName }, strict),
+    groupId: getEnvVar(env, { key: 'KAFKA_GROUP_ID', default: `${serviceName}-group` }, strict),
     sessionTimeout: getEnvVar(env, { key: 'KAFKA_SESSION_TIMEOUT', default: 30000, transform: toInt }, strict),
     heartbeatInterval: getEnvVar(env, { key: 'KAFKA_HEARTBEAT_INTERVAL', default: 3000, transform: toInt }, strict),
     maxRetries: getEnvVar(env, { key: 'KAFKA_MAX_RETRIES', default: 5, transform: toInt }, strict),
@@ -104,9 +109,9 @@ export function loadConfig(options: ConfigLoaderOptions = {}): FullConfig {
   const datadogRaw = {
     apiKey: getEnvVar(env, { key: 'DD_API_KEY' }, strict),
     site: getEnvVar(env, { key: 'DD_SITE', default: 'datadoghq.com' }, strict),
-    env: getEnvVar(env, { key: 'DD_ENV', default: baseRaw.env }, strict),
-    service: getEnvVar(env, { key: 'DD_SERVICE', default: baseRaw.service.name }, strict),
-    version: getEnvVar(env, { key: 'DD_VERSION', default: baseRaw.service.version }, strict),
+    env: getEnvVar(env, { key: 'DD_ENV', default: envName }, strict),
+    service: getEnvVar(env, { key: 'DD_SERVICE', default: serviceName }, strict),
+    version: getEnvVar(env, { key: 'DD_VERSION', default: serviceVersion }, strict),
     logsInjection: getEnvVar(env, { key: 'DD_LOGS_INJECTION', default: true, transform: toBool }, strict),
     traceEnabled: getEnvVar(env, { key: 'DD_TRACE_ENABLED', default: true, transform: toBool }, strict),
     profilingEnabled: getEnvVar(env, { key: 'DD_PROFILING_ENABLED', default: false, transform: toBool }, strict),
@@ -125,10 +130,11 @@ export function loadConfig(options: ConfigLoaderOptions = {}): FullConfig {
     return result.data;
   };
 
+  // Validate with Zod - it applies defaults and transforms
   return {
     base: validateSchema(baseConfigSchema, baseRaw, 'base'),
     kafka: validateSchema(kafkaConfigSchema, kafkaRaw, 'kafka'),
     postgres: validateSchema(postgresConfigSchema, postgresRaw, 'postgres'),
     datadog: validateSchema(datadogConfigSchema, datadogRaw, 'datadog'),
-  };
+  } as FullConfig;
 }

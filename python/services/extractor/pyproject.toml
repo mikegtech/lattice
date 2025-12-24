@@ -1,0 +1,16 @@
+[project]
+name = "lattice-extractor"
+version = "0.1.0"
+description = "Lattice text/attachment extraction service"
+requires-python = ">=3.11"
+dependencies = [
+    "lattice-common",
+    "lattice-contracts",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/extractor"]

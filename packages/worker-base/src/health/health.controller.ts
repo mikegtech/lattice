@@ -12,7 +12,7 @@ export interface HealthResponse {
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly health: HealthService) {}
+  constructor(private readonly healthService: HealthService) {}
 
   /**
    * Liveness probe - is the process alive?
@@ -30,7 +30,7 @@ export class HealthController {
    */
   @Get('ready')
   async readiness(): Promise<HealthResponse> {
-    const result = await this.health.check();
+    const result = await this.healthService.check();
 
     if (result.status === 'unhealthy') {
       throw new ReadinessError(result);
@@ -43,8 +43,8 @@ export class HealthController {
    * Detailed health check - returns full status
    */
   @Get()
-  async health(): Promise<HealthResponse> {
-    return this.health.check();
+  async getHealth(): Promise<HealthResponse> {
+    return this.healthService.check();
   }
 }
 

@@ -45,11 +45,26 @@ export function createKafkaClient(options: KafkaClientOptions): Kafka {
   // Add SASL config for Confluent Cloud
   if (config.securityProtocol === 'SASL_SSL') {
     kafkaConfig.ssl = true;
-    kafkaConfig.sasl = {
-      mechanism: config.saslMechanism.toLowerCase() as 'plain' | 'scram-sha-256' | 'scram-sha-512',
-      username: config.saslUsername ?? '',
-      password: config.saslPassword ?? '',
-    };
+    const mechanism = config.saslMechanism.toLowerCase();
+    if (mechanism === 'plain') {
+      kafkaConfig.sasl = {
+        mechanism: 'plain' as const,
+        username: config.saslUsername ?? '',
+        password: config.saslPassword ?? '',
+      };
+    } else if (mechanism === 'scram-sha-256') {
+      kafkaConfig.sasl = {
+        mechanism: 'scram-sha-256' as const,
+        username: config.saslUsername ?? '',
+        password: config.saslPassword ?? '',
+      };
+    } else if (mechanism === 'scram-sha-512') {
+      kafkaConfig.sasl = {
+        mechanism: 'scram-sha-512' as const,
+        username: config.saslUsername ?? '',
+        password: config.saslPassword ?? '',
+      };
+    }
   }
 
   return new Kafka(kafkaConfig);

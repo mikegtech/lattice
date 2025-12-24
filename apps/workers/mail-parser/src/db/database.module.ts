@@ -1,6 +1,12 @@
 import { Module, Global, OnModuleDestroy, Inject } from '@nestjs/common';
 import pg from 'pg';
-import { WORKER_CONFIG, type WorkerConfig, DATABASE_HEALTH, type DatabaseHealthCheck, LOGGER, type LoggerService } from '@lattice/worker-base';
+import { WORKER_CONFIG, type WorkerConfig, LOGGER, type LoggerService } from '@lattice/worker-base';
+
+export const DATABASE_HEALTH = 'DATABASE_HEALTH';
+
+export interface DatabaseHealthCheck {
+  check(): Promise<boolean>;
+}
 
 const { Pool } = pg;
 

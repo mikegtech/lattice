@@ -99,7 +99,7 @@ export class LoggerService implements NestLoggerService {
         version: config.version,
       },
       formatters: {
-        level: (label) => ({ level: label }),
+        level: (label: string) => ({ level: label }),
       },
       timestamp: pino.stdTimeFunctions.isoTime,
     };

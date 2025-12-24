@@ -35,7 +35,7 @@ export class ParserService {
     // Extract body
     const textPlain = parsed.text ?? '';
     const textHtml = parsed.html ?? '';
-    const textNormalized = this.normalizeText(textPlain || this.stripHtml(textHtml));
+    const textNormalized = this.normalizeText(textPlain || (typeof textHtml === 'string' ? this.stripHtml(textHtml) : ''));
 
     // Calculate content hash
     const contentHash = this.calculateContentHash(
@@ -45,41 +45,41 @@ export class ParserService {
     );
 
     // Extract attachments
-    const attachments = (parsed.attachments ?? []).map((att): Attachment => ({
-      attachment_id: uuidv4(),
-      filename: att.filename ?? 'unnamed',
-      mime_type: att.contentType ?? 'application/octet-stream',
-      size_bytes: att.size ?? 0,
-      content_hash: this.calculateHash(att.content),
-      storage_uri: undefined,
-      extracted_text: undefined,
-      extraction_status: 'pending',
-    }));
+    const attachments: Attachment[] = (parsed.attachments ?? []).map((att) => {
+      const attachment: Attachment = {
+        attachment_id: uuidv4(),
+        filename: att.filename ?? 'unnamed',
+        mime_type: att.contentType ?? 'application/octet-stream',
+        size_bytes: att.size ?? 0,
+        content_hash: this.calculateHash(att.content),
+        extraction_status: 'pending',
+      };
+      return attachment;
+    });
 
     // Build headers
     const headers: EmailHeaders = {
-      message_id: parsed.messageId,
-      in_reply_to: parsed.inReplyTo,
-      references: parsed.references
-        ? Array.isArray(parsed.references)
-          ? parsed.references
-          : [parsed.references]
-        : undefined,
       subject: parsed.subject ?? '(no subject)',
       from,
-      to,
-      cc,
-      bcc,
-      reply_to: replyTo,
       date: (parsed.date ?? new Date()).toISOString(),
     };
+    if (parsed.messageId) headers.message_id = parsed.messageId;
+    if (parsed.inReplyTo) headers.in_reply_to = parsed.inReplyTo;
+    if (parsed.references) {
+      headers.references = Array.isArray(parsed.references)
+        ? parsed.references
+        : [parsed.references];
+    }
+    if (to.length > 0) headers.to = to;
+    if (cc.length > 0) headers.cc = cc;
+    if (bcc.length > 0) headers.bcc = bcc;
+    if (replyTo) headers.reply_to = replyTo;
 
     // Build body
-    const body: EmailBody = {
-      text_plain: textPlain,
-      text_html: textHtml,
-      text_normalized: textNormalized,
-    };
+    const body: EmailBody = {};
+    if (textPlain) body.text_plain = textPlain;
+    if (typeof textHtml === 'string' && textHtml) body.text_html = textHtml;
+    if (textNormalized) body.text_normalized = textNormalized;
 
     // Build payload
     const payload: MailParsePayload = {
@@ -101,10 +101,11 @@ export class ParserService {
       return { address: 'unknown@unknown.com' };
     }
     const first = addr.value[0];
-    return {
-      name: first?.name,
+    const result: EmailAddress = {
       address: first?.address ?? 'unknown@unknown.com',
     };
+    if (first?.name) result.name = first.name;
+    return result;
   }
 
   private extractAddresses(addr: AddressObject | AddressObject[] | undefined): EmailAddress[] {
@@ -116,10 +117,11 @@ export class ParserService {
     for (const a of addrs) {
       if (a.value) {
         for (const v of a.value) {
-          result.push({
-            name: v.name,
+          const emailAddr: EmailAddress = {
             address: v.address ?? 'unknown@unknown.com',
-          });
+          };
+          if (v.name) emailAddr.name = v.name;
+          result.push(emailAddr);
         }
       }
     }
