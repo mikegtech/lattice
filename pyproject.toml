@@ -32,6 +32,8 @@ members = [
 lattice-common = { workspace = true }
 lattice-contracts = { workspace = true }
 lattice-mail = { workspace = true }
+lattice-storage = { workspace = true }
+lattice-kafka = { workspace = true }
 lattice-evaluator = { workspace = true }
 lattice-extractor = { workspace = true }
 
