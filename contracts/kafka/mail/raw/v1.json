@@ -1,64 +1,64 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "lattice.mail.raw.v1",
-  "title": "Raw Mail Event v1",
-  "description": "Raw email payload from Gmail API, ready for parsing",
-  "type": "object",
-  "properties": {
-    "provider_message_id": {
-      "type": "string",
-      "description": "Gmail message ID (unique within account)"
-    },
-    "email_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Lattice-assigned unique email ID"
-    },
-    "thread_id": {
-      "type": "string",
-      "description": "Gmail thread ID"
-    },
-    "history_id": {
-      "type": "string",
-      "description": "Gmail history ID for incremental sync"
-    },
-    "label_ids": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Gmail label IDs"
-    },
-    "raw_payload": {
-      "type": "string",
-      "description": "Base64url-encoded RFC822/MIME message"
-    },
-    "raw_object_uri": {
-      "type": "string",
-      "description": "Object storage URI for large payloads (optional)"
-    },
-    "size_bytes": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Size of raw payload in bytes"
-    },
-    "internal_date": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Gmail internal date (when received by Gmail)"
-    },
-    "fetched_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When this message was fetched from Gmail"
-    }
-  },
-  "required": [
-    "provider_message_id",
-    "email_id",
-    "thread_id",
-    "raw_payload",
-    "size_bytes",
-    "internal_date",
-    "fetched_at"
-  ],
-  "additionalProperties": false
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.mail.raw.v1",
+	"title": "Raw Mail Event v1",
+	"description": "Raw email payload from Gmail API, ready for parsing",
+	"type": "object",
+	"properties": {
+		"provider_message_id": {
+			"type": "string",
+			"description": "Gmail message ID (unique within account)"
+		},
+		"email_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice-assigned unique email ID"
+		},
+		"thread_id": {
+			"type": "string",
+			"description": "Gmail thread ID"
+		},
+		"history_id": {
+			"type": "string",
+			"description": "Gmail history ID for incremental sync"
+		},
+		"label_ids": {
+			"type": "array",
+			"items": { "type": "string" },
+			"description": "Gmail label IDs"
+		},
+		"raw_payload": {
+			"type": "string",
+			"description": "Base64url-encoded RFC822/MIME message"
+		},
+		"raw_object_uri": {
+			"type": "string",
+			"description": "Object storage URI for large payloads (optional)"
+		},
+		"size_bytes": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Size of raw payload in bytes"
+		},
+		"internal_date": {
+			"type": "string",
+			"format": "date-time",
+			"description": "Gmail internal date (when received by Gmail)"
+		},
+		"fetched_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When this message was fetched from Gmail"
+		}
+	},
+	"required": [
+		"provider_message_id",
+		"email_id",
+		"thread_id",
+		"raw_payload",
+		"size_bytes",
+		"internal_date",
+		"fetched_at"
+	],
+	"additionalProperties": false
 }

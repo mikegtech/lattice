@@ -1,4 +1,5 @@
 """Logging configuration for Lattice Python components."""
+
 import logging
 import sys
 from typing import Any

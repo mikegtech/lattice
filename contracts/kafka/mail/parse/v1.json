@@ -1,102 +1,132 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "lattice.mail.parse.v1",
-  "title": "Parsed Mail Event v1",
-  "description": "Parsed email with extracted metadata, body, and attachment manifest",
-  "type": "object",
-  "properties": {
-    "provider_message_id": {
-      "type": "string",
-      "description": "Gmail message ID"
-    },
-    "email_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Lattice-assigned unique email ID"
-    },
-    "thread_id": {
-      "type": "string",
-      "description": "Gmail thread ID"
-    },
-    "content_hash": {
-      "type": "string",
-      "description": "SHA-256 hash of normalized content for deduplication"
-    },
-    "headers": {
-      "type": "object",
-      "properties": {
-        "message_id": { "type": "string", "description": "RFC822 Message-ID header" },
-        "in_reply_to": { "type": "string" },
-        "references": { "type": "array", "items": { "type": "string" } },
-        "subject": { "type": "string" },
-        "from": { "$ref": "#/definitions/email_address" },
-        "to": { "type": "array", "items": { "$ref": "#/definitions/email_address" } },
-        "cc": { "type": "array", "items": { "$ref": "#/definitions/email_address" } },
-        "bcc": { "type": "array", "items": { "$ref": "#/definitions/email_address" } },
-        "reply_to": { "$ref": "#/definitions/email_address" },
-        "date": { "type": "string", "format": "date-time" }
-      },
-      "required": ["subject", "from", "date"],
-      "additionalProperties": true
-    },
-    "body": {
-      "type": "object",
-      "properties": {
-        "text_plain": { "type": "string", "description": "Plain text body" },
-        "text_html": { "type": "string", "description": "HTML body" },
-        "text_normalized": { "type": "string", "description": "Normalized text for indexing" }
-      },
-      "additionalProperties": false
-    },
-    "attachments": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/attachment" },
-      "description": "Attachment manifest"
-    },
-    "parsed_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When this email was parsed"
-    }
-  },
-  "definitions": {
-    "email_address": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "address": { "type": "string", "format": "email" }
-      },
-      "required": ["address"],
-      "additionalProperties": false
-    },
-    "attachment": {
-      "type": "object",
-      "properties": {
-        "attachment_id": { "type": "string", "format": "uuid" },
-        "filename": { "type": "string" },
-        "mime_type": { "type": "string" },
-        "size_bytes": { "type": "integer", "minimum": 0 },
-        "content_hash": { "type": "string", "description": "SHA-256 of attachment content" },
-        "storage_uri": { "type": "string", "description": "Object storage URI" },
-        "extracted_text": { "type": "string", "description": "Text extracted from attachment (if applicable)" },
-        "extraction_status": {
-          "type": "string",
-          "enum": ["pending", "success", "failed", "unsupported"]
-        }
-      },
-      "required": ["attachment_id", "filename", "mime_type", "size_bytes", "content_hash"],
-      "additionalProperties": false
-    }
-  },
-  "required": [
-    "provider_message_id",
-    "email_id",
-    "thread_id",
-    "content_hash",
-    "headers",
-    "body",
-    "attachments",
-    "parsed_at"
-  ],
-  "additionalProperties": false
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.mail.parse.v1",
+	"title": "Parsed Mail Event v1",
+	"description": "Parsed email with extracted metadata, body, and attachment manifest",
+	"type": "object",
+	"properties": {
+		"provider_message_id": {
+			"type": "string",
+			"description": "Gmail message ID"
+		},
+		"email_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice-assigned unique email ID"
+		},
+		"thread_id": {
+			"type": "string",
+			"description": "Gmail thread ID"
+		},
+		"content_hash": {
+			"type": "string",
+			"description": "SHA-256 hash of normalized content for deduplication"
+		},
+		"headers": {
+			"type": "object",
+			"properties": {
+				"message_id": {
+					"type": "string",
+					"description": "RFC822 Message-ID header"
+				},
+				"in_reply_to": { "type": "string" },
+				"references": { "type": "array", "items": { "type": "string" } },
+				"subject": { "type": "string" },
+				"from": { "$ref": "#/definitions/email_address" },
+				"to": {
+					"type": "array",
+					"items": { "$ref": "#/definitions/email_address" }
+				},
+				"cc": {
+					"type": "array",
+					"items": { "$ref": "#/definitions/email_address" }
+				},
+				"bcc": {
+					"type": "array",
+					"items": { "$ref": "#/definitions/email_address" }
+				},
+				"reply_to": { "$ref": "#/definitions/email_address" },
+				"date": { "type": "string", "format": "date-time" }
+			},
+			"required": ["subject", "from", "date"],
+			"additionalProperties": true
+		},
+		"body": {
+			"type": "object",
+			"properties": {
+				"text_plain": { "type": "string", "description": "Plain text body" },
+				"text_html": { "type": "string", "description": "HTML body" },
+				"text_normalized": {
+					"type": "string",
+					"description": "Normalized text for indexing"
+				}
+			},
+			"additionalProperties": false
+		},
+		"attachments": {
+			"type": "array",
+			"items": { "$ref": "#/definitions/attachment" },
+			"description": "Attachment manifest"
+		},
+		"parsed_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When this email was parsed"
+		}
+	},
+	"definitions": {
+		"email_address": {
+			"type": "object",
+			"properties": {
+				"name": { "type": "string" },
+				"address": { "type": "string", "format": "email" }
+			},
+			"required": ["address"],
+			"additionalProperties": false
+		},
+		"attachment": {
+			"type": "object",
+			"properties": {
+				"attachment_id": { "type": "string", "format": "uuid" },
+				"filename": { "type": "string" },
+				"mime_type": { "type": "string" },
+				"size_bytes": { "type": "integer", "minimum": 0 },
+				"content_hash": {
+					"type": "string",
+					"description": "SHA-256 of attachment content"
+				},
+				"storage_uri": {
+					"type": "string",
+					"description": "Object storage URI"
+				},
+				"extracted_text": {
+					"type": "string",
+					"description": "Text extracted from attachment (if applicable)"
+				},
+				"extraction_status": {
+					"type": "string",
+					"enum": ["pending", "success", "failed", "unsupported"]
+				}
+			},
+			"required": [
+				"attachment_id",
+				"filename",
+				"mime_type",
+				"size_bytes",
+				"content_hash"
+			],
+			"additionalProperties": false
+		}
+	},
+	"required": [
+		"provider_message_id",
+		"email_id",
+		"thread_id",
+		"content_hash",
+		"headers",
+		"body",
+		"attachments",
+		"parsed_at"
+	],
+	"additionalProperties": false
 }

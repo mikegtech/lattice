@@ -1,4 +1,7 @@
-import type { MailParsePayload, MailChunkPayload } from '@lattice/core-contracts';
+import type {
+	MailChunkPayload,
+	MailParsePayload,
+} from "@lattice/core-contracts";
 
 /**
  * Input type for the mail-chunker worker

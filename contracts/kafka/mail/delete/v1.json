@@ -1,60 +1,66 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "lattice.mail.delete.v1",
-  "title": "Mail Delete Event v1",
-  "description": "Request to delete email and associated artifacts",
-  "type": "object",
-  "properties": {
-    "provider_message_id": {
-      "type": "string",
-      "description": "Gmail message ID"
-    },
-    "email_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Lattice-assigned unique email ID"
-    },
-    "deletion_type": {
-      "type": "string",
-      "enum": ["soft", "hard"],
-      "description": "Soft delete marks as deleted; hard delete removes data"
-    },
-    "deletion_reason": {
-      "type": "string",
-      "enum": ["user_request", "retention_policy", "reprocess", "gdpr_request", "admin_action"],
-      "description": "Reason for deletion"
-    },
-    "delete_vectors": {
-      "type": "boolean",
-      "default": true,
-      "description": "Whether to delete vectors from Milvus"
-    },
-    "delete_storage": {
-      "type": "boolean",
-      "default": true,
-      "description": "Whether to delete from object storage"
-    },
-    "delete_postgres": {
-      "type": "boolean",
-      "default": true,
-      "description": "Whether to delete from Postgres"
-    },
-    "requested_by": {
-      "type": "string",
-      "description": "Identifier of who requested deletion"
-    },
-    "requested_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When deletion was requested"
-    }
-  },
-  "required": [
-    "provider_message_id",
-    "email_id",
-    "deletion_type",
-    "deletion_reason",
-    "requested_at"
-  ],
-  "additionalProperties": false
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.mail.delete.v1",
+	"title": "Mail Delete Event v1",
+	"description": "Request to delete email and associated artifacts",
+	"type": "object",
+	"properties": {
+		"provider_message_id": {
+			"type": "string",
+			"description": "Gmail message ID"
+		},
+		"email_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice-assigned unique email ID"
+		},
+		"deletion_type": {
+			"type": "string",
+			"enum": ["soft", "hard"],
+			"description": "Soft delete marks as deleted; hard delete removes data"
+		},
+		"deletion_reason": {
+			"type": "string",
+			"enum": [
+				"user_request",
+				"retention_policy",
+				"reprocess",
+				"gdpr_request",
+				"admin_action"
+			],
+			"description": "Reason for deletion"
+		},
+		"delete_vectors": {
+			"type": "boolean",
+			"default": true,
+			"description": "Whether to delete vectors from Milvus"
+		},
+		"delete_storage": {
+			"type": "boolean",
+			"default": true,
+			"description": "Whether to delete from object storage"
+		},
+		"delete_postgres": {
+			"type": "boolean",
+			"default": true,
+			"description": "Whether to delete from Postgres"
+		},
+		"requested_by": {
+			"type": "string",
+			"description": "Identifier of who requested deletion"
+		},
+		"requested_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When deletion was requested"
+		}
+	},
+	"required": [
+		"provider_message_id",
+		"email_id",
+		"deletion_type",
+		"deletion_reason",
+		"requested_at"
+	],
+	"additionalProperties": false
 }

@@ -1,4 +1,5 @@
 """Configuration management for Lattice Python components."""
+
 import os
 from functools import lru_cache
 

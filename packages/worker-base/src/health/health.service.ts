@@ -1,55 +1,60 @@
-import { Injectable, Inject, Optional } from '@nestjs/common';
-import { KafkaService } from '../kafka/kafka.service.js';
-import type { HealthResponse } from './health.controller.js';
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import type { KafkaService } from "../kafka/kafka.service.js";
+import type { HealthResponse } from "./health.controller.js";
 
 export interface DatabaseHealthCheck {
-  check(): Promise<boolean>;
+	check(): Promise<boolean>;
 }
 
-export const DATABASE_HEALTH = 'DATABASE_HEALTH';
+export const DATABASE_HEALTH = "DATABASE_HEALTH";
 
 @Injectable()
 export class HealthService {
-  constructor(
-    private readonly kafka: KafkaService,
-    @Optional() @Inject(DATABASE_HEALTH) private readonly dbHealth?: DatabaseHealthCheck,
-  ) {}
+	constructor(
+		private readonly kafka: KafkaService,
+		@Optional()
+		@Inject(DATABASE_HEALTH)
+		private readonly dbHealth?: DatabaseHealthCheck,
+	) {}
 
-  async check(): Promise<HealthResponse> {
-    const checks: HealthResponse['checks'] = {
-      kafka: { status: 'unhealthy' },
-    };
+	async check(): Promise<HealthResponse> {
+		const checks: HealthResponse["checks"] = {
+			kafka: { status: "unhealthy" },
+		};
 
-    // Check Kafka
-    if (this.kafka.isAlive()) {
-      checks.kafka = { status: 'ok' };
-    } else {
-      checks.kafka = { status: 'unhealthy', message: 'Kafka not connected' };
-    }
+		// Check Kafka
+		if (this.kafka.isAlive()) {
+			checks.kafka = { status: "ok" };
+		} else {
+			checks.kafka = { status: "unhealthy", message: "Kafka not connected" };
+		}
 
-    // Check database if available
-    if (this.dbHealth) {
-      try {
-        const isHealthy = await this.dbHealth.check();
-        checks.database = isHealthy
-          ? { status: 'ok' }
-          : { status: 'unhealthy', message: 'Database check failed' };
-      } catch (error) {
-        checks.database = {
-          status: 'unhealthy',
-          message: error instanceof Error ? error.message : 'Database check failed',
-        };
-      }
-    }
+		// Check database if available
+		if (this.dbHealth) {
+			try {
+				const isHealthy = await this.dbHealth.check();
+				checks.database = isHealthy
+					? { status: "ok" }
+					: { status: "unhealthy", message: "Database check failed" };
+			} catch (error) {
+				checks.database = {
+					status: "unhealthy",
+					message:
+						error instanceof Error ? error.message : "Database check failed",
+				};
+			}
+		}
 
-    // Determine overall status
-    const allOk = Object.values(checks).every((c) => c.status === 'ok');
-    const anyUnhealthy = Object.values(checks).some((c) => c.status === 'unhealthy');
+		// Determine overall status
+		const allOk = Object.values(checks).every((c) => c.status === "ok");
+		const anyUnhealthy = Object.values(checks).some(
+			(c) => c.status === "unhealthy",
+		);
 
-    return {
-      status: allOk ? 'ok' : anyUnhealthy ? 'unhealthy' : 'degraded',
-      timestamp: new Date().toISOString(),
-      checks,
-    };
-  }
+		return {
+			status: allOk ? "ok" : anyUnhealthy ? "unhealthy" : "degraded",
+			timestamp: new Date().toISOString(),
+			checks,
+		};
+	}
 }
