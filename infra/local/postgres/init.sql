@@ -1,8 +1,7 @@
 -- Lattice Database Initialization
 -- This script is run by Docker on first startup
 
--- Create databases
-CREATE DATABASE lattice;
+-- Create additional databases (lattice is created via POSTGRES_DB env var)
 CREATE DATABASE airflow;
 
 -- Connect to lattice and run migrations
