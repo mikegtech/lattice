@@ -1,36 +1,36 @@
-import { Module } from '@nestjs/common';
 import {
-  WorkerConfigModule,
-  TelemetryModule,
-  KafkaModule,
-  HealthModule,
-  LifecycleModule,
-} from '@lattice/worker-base';
-import { DatabaseModule } from './db/database.module.js';
-import { WorkerModule } from './worker/worker.module.js';
+	HealthModule,
+	KafkaModule,
+	LifecycleModule,
+	TelemetryModule,
+	WorkerConfigModule,
+} from "@lattice/worker-base";
+import { Module } from "@nestjs/common";
+import { DatabaseModule } from "./db/database.module.js";
+import { WorkerModule } from "./worker/worker.module.js";
 
 @Module({
-  imports: [
-    // Core infrastructure
-    WorkerConfigModule.forRoot({
-      envFilePath: '.env',
-    }),
-    TelemetryModule,
-    LifecycleModule,
+	imports: [
+		// Core infrastructure
+		WorkerConfigModule.forRoot({
+			envFilePath: ".env",
+		}),
+		TelemetryModule,
+		LifecycleModule,
 
-    // Kafka with expected schema version
-    KafkaModule.forRoot({
-      expectedSchemaVersion: 'v1',
-    }),
+		// Kafka with expected schema version
+		KafkaModule.forRoot({
+			expectedSchemaVersion: "v1",
+		}),
 
-    // Health checks
-    HealthModule,
+		// Health checks
+		HealthModule,
 
-    // Database
-    DatabaseModule,
+		// Database
+		DatabaseModule,
 
-    // Worker business logic
-    WorkerModule,
-  ],
+		// Worker business logic
+		WorkerModule,
+	],
 })
 export class AppModule {}

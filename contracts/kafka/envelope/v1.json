@@ -1,109 +1,109 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "lattice.envelope.v1",
-  "title": "Lattice Kafka Envelope v1",
-  "description": "Standard envelope wrapping all Lattice Kafka messages. Every message must include this envelope.",
-  "type": "object",
-  "properties": {
-    "message_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Unique identifier for this message instance"
-    },
-    "trace_id": {
-      "type": "string",
-      "description": "Distributed tracing ID for correlation across services (optional but recommended)"
-    },
-    "span_id": {
-      "type": "string",
-      "description": "Span ID within the trace"
-    },
-    "tenant_id": {
-      "type": "string",
-      "description": "Tenant identifier for multi-tenant isolation"
-    },
-    "account_id": {
-      "type": "string",
-      "description": "Account identifier (e.g., Gmail account)"
-    },
-    "domain": {
-      "type": "string",
-      "enum": ["mail", "calendar", "drive", "contacts"],
-      "description": "Business domain for this event"
-    },
-    "stage": {
-      "type": "string",
-      "enum": ["raw", "parse", "chunk", "embed", "upsert", "delete", "audit"],
-      "description": "Pipeline stage that produced this event"
-    },
-    "schema_version": {
-      "type": "string",
-      "pattern": "^v[0-9]+$",
-      "description": "Version of the payload schema (e.g., v1)"
-    },
-    "created_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp when this message was created"
-    },
-    "source": {
-      "type": "object",
-      "properties": {
-        "service": {
-          "type": "string",
-          "description": "Service that produced this message"
-        },
-        "version": {
-          "type": "string",
-          "description": "Version of the producing service"
-        },
-        "instance_id": {
-          "type": "string",
-          "description": "Instance identifier for debugging"
-        }
-      },
-      "required": ["service", "version"],
-      "additionalProperties": false
-    },
-    "data_classification": {
-      "type": "string",
-      "enum": ["public", "internal", "confidential", "restricted"],
-      "default": "confidential",
-      "description": "Data sensitivity classification"
-    },
-    "pii": {
-      "type": "object",
-      "properties": {
-        "contains_pii": {
-          "type": "boolean",
-          "description": "Whether the payload contains PII"
-        },
-        "pii_fields": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "List of field paths containing PII (for audit)"
-        }
-      },
-      "required": ["contains_pii"],
-      "additionalProperties": false
-    },
-    "payload": {
-      "type": "object",
-      "description": "The actual event payload (schema varies by domain/stage)"
-    }
-  },
-  "required": [
-    "message_id",
-    "tenant_id",
-    "account_id",
-    "domain",
-    "stage",
-    "schema_version",
-    "created_at",
-    "source",
-    "data_classification",
-    "pii",
-    "payload"
-  ],
-  "additionalProperties": false
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.envelope.v1",
+	"title": "Lattice Kafka Envelope v1",
+	"description": "Standard envelope wrapping all Lattice Kafka messages. Every message must include this envelope.",
+	"type": "object",
+	"properties": {
+		"message_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Unique identifier for this message instance"
+		},
+		"trace_id": {
+			"type": "string",
+			"description": "Distributed tracing ID for correlation across services (optional but recommended)"
+		},
+		"span_id": {
+			"type": "string",
+			"description": "Span ID within the trace"
+		},
+		"tenant_id": {
+			"type": "string",
+			"description": "Tenant identifier for multi-tenant isolation"
+		},
+		"account_id": {
+			"type": "string",
+			"description": "Account identifier (e.g., Gmail account)"
+		},
+		"domain": {
+			"type": "string",
+			"enum": ["mail", "calendar", "drive", "contacts"],
+			"description": "Business domain for this event"
+		},
+		"stage": {
+			"type": "string",
+			"enum": ["raw", "parse", "chunk", "embed", "upsert", "delete", "audit"],
+			"description": "Pipeline stage that produced this event"
+		},
+		"schema_version": {
+			"type": "string",
+			"pattern": "^v[0-9]+$",
+			"description": "Version of the payload schema (e.g., v1)"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "ISO 8601 timestamp when this message was created"
+		},
+		"source": {
+			"type": "object",
+			"properties": {
+				"service": {
+					"type": "string",
+					"description": "Service that produced this message"
+				},
+				"version": {
+					"type": "string",
+					"description": "Version of the producing service"
+				},
+				"instance_id": {
+					"type": "string",
+					"description": "Instance identifier for debugging"
+				}
+			},
+			"required": ["service", "version"],
+			"additionalProperties": false
+		},
+		"data_classification": {
+			"type": "string",
+			"enum": ["public", "internal", "confidential", "restricted"],
+			"default": "confidential",
+			"description": "Data sensitivity classification"
+		},
+		"pii": {
+			"type": "object",
+			"properties": {
+				"contains_pii": {
+					"type": "boolean",
+					"description": "Whether the payload contains PII"
+				},
+				"pii_fields": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "List of field paths containing PII (for audit)"
+				}
+			},
+			"required": ["contains_pii"],
+			"additionalProperties": false
+		},
+		"payload": {
+			"type": "object",
+			"description": "The actual event payload (schema varies by domain/stage)"
+		}
+	},
+	"required": [
+		"message_id",
+		"tenant_id",
+		"account_id",
+		"domain",
+		"stage",
+		"schema_version",
+		"created_at",
+		"source",
+		"data_classification",
+		"pii",
+		"payload"
+	],
+	"additionalProperties": false
 }

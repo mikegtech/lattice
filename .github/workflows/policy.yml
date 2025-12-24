@@ -1,4 +1,4 @@
-name: ci
+name: policy
 
 on:
   pull_request:
@@ -6,12 +6,12 @@ on:
     branches: [ main ]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: policy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   precommit:
-    name: pre-commit (policy)
+    name: pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,14 +37,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pre-commit
 
-      - name: Install Node deps (for Biome hook)
+      - name: Install Node deps (for Biome)
         run: pnpm install --frozen-lockfile
 
       - name: Run pre-commit (all files)
-        run: pre-commit run --all-files
+        run: |
+          pre-commit run --all-files
 
   node:
-    name: node (build)
+    name: node-lint-typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,8 +67,14 @@ jobs:
       - name: Build
         run: pnpm -r build
 
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
   python:
-    name: python (deps)
+    name: python-lint-format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,4 +90,22 @@ jobs:
           python -m pip install uv
 
       - name: Sync dependencies
-        run: uv sync
+        run: |
+          uv sync
+
+      - name: Ruff (lint)
+        run: |
+          uv run ruff check .
+
+      - name: Ruff (format check)
+        run: |
+          uv run ruff format --check .
+
+            # Aggregator job that becomes the single required "policy" gate
+  policy:
+    name: policy
+    runs-on: ubuntu-latest
+    needs: [precommit, node, python]
+    steps:
+      - name: Policy checks passed
+        run: echo "Policy checks passed"

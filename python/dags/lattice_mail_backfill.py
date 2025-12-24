@@ -6,6 +6,7 @@ This DAG fetches all historical emails in batches.
 
 Schedule: Manual trigger only
 """
+
 from datetime import datetime, timedelta
 from typing import Any
 

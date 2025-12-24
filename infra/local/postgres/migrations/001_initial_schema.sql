@@ -112,7 +112,7 @@ CREATE TABLE email_attachment (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_attachment_email_id ON email_attachment(email_id, attachment_id)
+    CONSTRAINT uq_attachment_email_id UNIQUE (email_id, attachment_id)
 );
 
 -- Indexes for attachment table

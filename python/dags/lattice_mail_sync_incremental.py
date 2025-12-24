@@ -6,6 +6,7 @@ This DAG fetches new emails since the last sync and publishes raw events.
 
 Schedule: Every 5 minutes
 """
+
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -79,7 +80,9 @@ def update_sync_state(account_id: str, history_id: str, message_count: int, **co
 
     hook.run(
         """
-        INSERT INTO sync_state (tenant_id, account_id, history_id, last_sync_at, last_message_count, status)
+        INSERT INTO sync_state (
+            tenant_id, account_id, history_id, last_sync_at, last_message_count, status
+        )
         VALUES ('default', %s, %s, NOW(), %s, 'idle')
         ON CONFLICT (tenant_id, account_id)
         DO UPDATE SET
@@ -142,8 +145,12 @@ with DAG(
         python_callable=update_sync_state,
         op_kwargs={
             "account_id": account_id,
-            "history_id": "{{ ti.xcom_pull(task_ids='fetch_gmail_messages', key='new_history_id') or '' }}",
-            "message_count": "{{ ti.xcom_pull(task_ids='fetch_gmail_messages', key='message_count') or 0 }}",
+            "history_id": (
+                "{{ ti.xcom_pull(task_ids='fetch_gmail_messages', key='new_history_id') or '' }}"
+            ),
+            "message_count": (
+                "{{ ti.xcom_pull(task_ids='fetch_gmail_messages', key='message_count') or 0 }}"
+            ),
         },
     )
 

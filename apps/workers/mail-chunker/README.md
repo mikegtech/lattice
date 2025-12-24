@@ -78,8 +78,10 @@ pnpm docker:up
 2. Run migrations:
 ```bash
 # Connect to Postgres and run migrations
-psql postgresql://postgres:postgres@localhost:5432/lattice -f infra/local/postgres/migrations/001_initial_schema.sql
-psql postgresql://postgres:postgres@localhost:5432/lattice -f infra/local/postgres/migrations/002_chunk_versioning.sql
+# pragma: allowlist secret
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/lattice"
+psql "$DATABASE_URL" -f infra/local/postgres/migrations/001_initial_schema.sql
+psql "$DATABASE_URL" -f infra/local/postgres/migrations/002_chunk_versioning.sql
 ```
 
 3. Configure environment:

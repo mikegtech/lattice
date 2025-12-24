@@ -1,7 +1,7 @@
 """Lattice common utilities for Python components."""
 
-from .config import get_config, LatticeConfig
-from .logging import get_logger, configure_logging
+from .config import LatticeConfig, get_config
+from .logging import configure_logging, get_logger
 
 __all__ = [
     "get_config",

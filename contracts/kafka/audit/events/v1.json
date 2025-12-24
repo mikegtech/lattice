@@ -1,118 +1,118 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "lattice.audit.events.v1",
-  "title": "Audit Event v1",
-  "description": "Audit trail event for compliance and debugging",
-  "type": "object",
-  "properties": {
-    "audit_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Unique identifier for this audit event"
-    },
-    "event_type": {
-      "type": "string",
-      "enum": [
-        "email.ingested",
-        "email.parsed",
-        "email.chunked",
-        "email.embedded",
-        "email.indexed",
-        "email.deleted",
-        "email.reprocessed",
-        "attachment.extracted",
-        "attachment.ocr_completed",
-        "vector.upserted",
-        "vector.deleted",
-        "sync.started",
-        "sync.completed",
-        "sync.failed",
-        "backfill.started",
-        "backfill.completed",
-        "reindex.started",
-        "reindex.completed",
-        "dlq.message_added",
-        "dlq.message_replayed"
-      ],
-      "description": "Type of audit event"
-    },
-    "entity_type": {
-      "type": "string",
-      "enum": ["email", "attachment", "chunk", "embedding", "sync", "backfill"],
-      "description": "Type of entity this audit event relates to"
-    },
-    "entity_id": {
-      "type": "string",
-      "description": "ID of the entity (email_id, chunk_id, etc.)"
-    },
-    "provider_message_id": {
-      "type": "string",
-      "description": "Gmail message ID if applicable"
-    },
-    "email_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Lattice email ID if applicable"
-    },
-    "action": {
-      "type": "string",
-      "enum": ["create", "update", "delete", "process", "retry", "skip"],
-      "description": "Action performed"
-    },
-    "outcome": {
-      "type": "string",
-      "enum": ["success", "failure", "skipped", "partial"],
-      "description": "Outcome of the action"
-    },
-    "details": {
-      "type": "object",
-      "description": "Additional details specific to the event type",
-      "additionalProperties": true
-    },
-    "metrics": {
-      "type": "object",
-      "properties": {
-        "duration_ms": { "type": "integer", "minimum": 0 },
-        "bytes_processed": { "type": "integer", "minimum": 0 },
-        "items_processed": { "type": "integer", "minimum": 0 }
-      },
-      "additionalProperties": true
-    },
-    "correlation": {
-      "type": "object",
-      "properties": {
-        "trace_id": { "type": "string" },
-        "span_id": { "type": "string" },
-        "parent_audit_id": { "type": "string", "format": "uuid" },
-        "dag_run_id": { "type": "string" },
-        "task_id": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "actor": {
-      "type": "object",
-      "properties": {
-        "service": { "type": "string" },
-        "version": { "type": "string" },
-        "instance_id": { "type": "string" }
-      },
-      "required": ["service"],
-      "additionalProperties": false
-    },
-    "timestamp": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When this audit event occurred"
-    }
-  },
-  "required": [
-    "audit_id",
-    "event_type",
-    "entity_type",
-    "action",
-    "outcome",
-    "actor",
-    "timestamp"
-  ],
-  "additionalProperties": false
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.audit.events.v1",
+	"title": "Audit Event v1",
+	"description": "Audit trail event for compliance and debugging",
+	"type": "object",
+	"properties": {
+		"audit_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Unique identifier for this audit event"
+		},
+		"event_type": {
+			"type": "string",
+			"enum": [
+				"email.ingested",
+				"email.parsed",
+				"email.chunked",
+				"email.embedded",
+				"email.indexed",
+				"email.deleted",
+				"email.reprocessed",
+				"attachment.extracted",
+				"attachment.ocr_completed",
+				"vector.upserted",
+				"vector.deleted",
+				"sync.started",
+				"sync.completed",
+				"sync.failed",
+				"backfill.started",
+				"backfill.completed",
+				"reindex.started",
+				"reindex.completed",
+				"dlq.message_added",
+				"dlq.message_replayed"
+			],
+			"description": "Type of audit event"
+		},
+		"entity_type": {
+			"type": "string",
+			"enum": ["email", "attachment", "chunk", "embedding", "sync", "backfill"],
+			"description": "Type of entity this audit event relates to"
+		},
+		"entity_id": {
+			"type": "string",
+			"description": "ID of the entity (email_id, chunk_id, etc.)"
+		},
+		"provider_message_id": {
+			"type": "string",
+			"description": "Gmail message ID if applicable"
+		},
+		"email_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice email ID if applicable"
+		},
+		"action": {
+			"type": "string",
+			"enum": ["create", "update", "delete", "process", "retry", "skip"],
+			"description": "Action performed"
+		},
+		"outcome": {
+			"type": "string",
+			"enum": ["success", "failure", "skipped", "partial"],
+			"description": "Outcome of the action"
+		},
+		"details": {
+			"type": "object",
+			"description": "Additional details specific to the event type",
+			"additionalProperties": true
+		},
+		"metrics": {
+			"type": "object",
+			"properties": {
+				"duration_ms": { "type": "integer", "minimum": 0 },
+				"bytes_processed": { "type": "integer", "minimum": 0 },
+				"items_processed": { "type": "integer", "minimum": 0 }
+			},
+			"additionalProperties": true
+		},
+		"correlation": {
+			"type": "object",
+			"properties": {
+				"trace_id": { "type": "string" },
+				"span_id": { "type": "string" },
+				"parent_audit_id": { "type": "string", "format": "uuid" },
+				"dag_run_id": { "type": "string" },
+				"task_id": { "type": "string" }
+			},
+			"additionalProperties": false
+		},
+		"actor": {
+			"type": "object",
+			"properties": {
+				"service": { "type": "string" },
+				"version": { "type": "string" },
+				"instance_id": { "type": "string" }
+			},
+			"required": ["service"],
+			"additionalProperties": false
+		},
+		"timestamp": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When this audit event occurred"
+		}
+	},
+	"required": [
+		"audit_id",
+		"event_type",
+		"entity_type",
+		"action",
+		"outcome",
+		"actor",
+		"timestamp"
+	],
+	"additionalProperties": false
 }
