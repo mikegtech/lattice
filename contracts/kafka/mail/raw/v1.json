@@ -2,62 +2,162 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"$id": "lattice.mail.raw.v1",
 	"title": "Raw Mail Event v1",
-	"description": "Raw email payload from Gmail API, ready for parsing",
+	"description": "Raw email payload from any mail provider (Gmail API, IMAP), ready for parsing",
 	"type": "object",
 	"properties": {
 		"provider_message_id": {
 			"type": "string",
-			"description": "Gmail message ID (unique within account)"
+			"description": "Provider-specific stable message identifier (Gmail message ID, IMAP UID)"
 		},
 		"email_id": {
 			"type": "string",
 			"format": "uuid",
 			"description": "Lattice-assigned unique email ID"
 		},
-		"thread_id": {
+		"provider_thread_id": {
 			"type": "string",
-			"description": "Gmail thread ID"
+			"description": "Provider-specific thread identifier (Gmail thread ID; null/absent for IMAP)"
 		},
-		"history_id": {
+		"received_at": {
 			"type": "string",
-			"description": "Gmail history ID for incremental sync"
-		},
-		"label_ids": {
-			"type": "array",
-			"items": { "type": "string" },
-			"description": "Gmail label IDs"
-		},
-		"raw_payload": {
-			"type": "string",
-			"description": "Base64url-encoded RFC822/MIME message"
+			"format": "date-time",
+			"description": "When the email was received by the mail server (Gmail internal_date, IMAP INTERNALDATE)"
 		},
 		"raw_object_uri": {
 			"type": "string",
-			"description": "Object storage URI for large payloads (optional)"
+			"description": "Object storage URI for the raw email payload (required)"
+		},
+		"raw_format": {
+			"type": "string",
+			"enum": ["rfc822", "gmail_raw", "gmail_full"],
+			"description": "Format of the raw payload: rfc822 (IMAP/standard), gmail_raw (base64url RFC822), gmail_full (Gmail API full format)"
+		},
+		"raw_payload": {
+			"type": "string",
+			"description": "Inline raw payload for small messages (base64url-encoded RFC822/MIME); use raw_object_uri for large payloads"
 		},
 		"size_bytes": {
 			"type": "integer",
 			"minimum": 0,
 			"description": "Size of raw payload in bytes"
 		},
-		"internal_date": {
-			"type": "string",
-			"format": "date-time",
-			"description": "Gmail internal date (when received by Gmail)"
+		"attachments_manifest": {
+			"type": "array",
+			"description": "Manifest of attachments in this email",
+			"items": {
+				"type": "object",
+				"properties": {
+					"attachment_id": {
+						"type": "string",
+						"description": "Provider-specific attachment identifier"
+					},
+					"filename": {
+						"type": "string",
+						"description": "Original filename"
+					},
+					"content_type": {
+						"type": "string",
+						"description": "MIME content type"
+					},
+					"size_bytes": {
+						"type": "integer",
+						"minimum": 0,
+						"description": "Attachment size in bytes"
+					},
+					"object_uri": {
+						"type": "string",
+						"description": "Object storage URI for the attachment (if stored separately)"
+					}
+				},
+				"required": ["attachment_id", "filename", "content_type", "size_bytes"],
+				"additionalProperties": false
+			}
+		},
+		"headers_subset": {
+			"type": "object",
+			"description": "Optional subset of email headers (may contain redacted values for PII)",
+			"properties": {
+				"message_id": {
+					"type": "string",
+					"description": "RFC 5322 Message-ID header"
+				},
+				"subject": {
+					"type": "string",
+					"description": "Email subject (may be redacted)"
+				},
+				"date": {
+					"type": "string",
+					"description": "RFC 5322 Date header"
+				},
+				"in_reply_to": {
+					"type": "string",
+					"description": "In-Reply-To header for threading"
+				},
+				"references": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "References header values for threading"
+				}
+			},
+			"additionalProperties": true
+		},
+		"gmail_metadata": {
+			"type": "object",
+			"description": "Gmail-specific metadata (present only for Gmail provider)",
+			"properties": {
+				"history_id": {
+					"type": "string",
+					"description": "Gmail history ID for incremental sync"
+				},
+				"label_ids": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Gmail label IDs"
+				},
+				"internal_date": {
+					"type": "string",
+					"format": "date-time",
+					"description": "Gmail internal date (when received by Gmail)"
+				}
+			},
+			"additionalProperties": false
+		},
+		"imap_metadata": {
+			"type": "object",
+			"description": "IMAP-specific metadata (present only for IMAP provider)",
+			"properties": {
+				"uid": {
+					"type": "integer",
+					"description": "IMAP UID"
+				},
+				"uidvalidity": {
+					"type": "integer",
+					"description": "IMAP UIDVALIDITY for the mailbox"
+				},
+				"folder": {
+					"type": "string",
+					"description": "IMAP folder name (e.g., INBOX)"
+				},
+				"flags": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "IMAP flags (e.g., \\Seen, \\Flagged)"
+				}
+			},
+			"additionalProperties": false
 		},
 		"fetched_at": {
 			"type": "string",
 			"format": "date-time",
-			"description": "When this message was fetched from Gmail"
+			"description": "When this message was fetched from the provider"
 		}
 	},
 	"required": [
 		"provider_message_id",
 		"email_id",
-		"thread_id",
-		"raw_payload",
-		"size_bytes",
-		"internal_date",
+		"received_at",
+		"raw_object_uri",
+		"raw_format",
 		"fetched_at"
 	],
 	"additionalProperties": false
