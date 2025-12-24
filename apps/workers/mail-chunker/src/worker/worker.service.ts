@@ -220,7 +220,7 @@ export class MailChunkerService extends BaseWorkerService<
 	/**
 	 * Override to produce multiple output messages (one per chunk)
 	 */
-	protected async produceOutput(
+	protected override async produceOutput(
 		output: MailChunkPayload[],
 		originalMessage: {
 			envelope: { tenant_id: string; account_id: string; domain: string };
@@ -236,7 +236,11 @@ export class MailChunkerService extends BaseWorkerService<
 			await this.kafka.produce(topicOut, chunkPayload, {
 				tenantId: originalMessage.envelope.tenant_id,
 				accountId: originalMessage.envelope.account_id,
-				domain: originalMessage.envelope.domain,
+				domain: originalMessage.envelope.domain as
+					| "mail"
+					| "calendar"
+					| "drive"
+					| "contacts",
 				stage: this.config.stage,
 				schemaVersion: "v1",
 			});

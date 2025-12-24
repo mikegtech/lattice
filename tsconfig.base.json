@@ -15,7 +15,7 @@
 		"noUncheckedIndexedAccess": true,
 		"noImplicitOverride": true,
 		"noPropertyAccessFromIndexSignature": true,
-		"exactOptionalPropertyTypes": true,
+		"exactOptionalPropertyTypes": false,
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitReturns": true,
 		"isolatedModules": true
