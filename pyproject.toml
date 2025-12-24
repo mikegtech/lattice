@@ -3,7 +3,6 @@ name = "lattice"
 version = "0.1.0"
 description = "Lattice email indexing pipeline - Python components"
 requires-python = ">=3.11"
-dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -11,6 +10,8 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
     "mypy>=1.7.0",
+    "pre-commit>=4.5.1",
+    "detect-secrets>=1.5.0"
 ]
 
 [tool.uv]
@@ -31,6 +32,8 @@ members = [
 lattice-common = { workspace = true }
 lattice-contracts = { workspace = true }
 lattice-mail = { workspace = true }
+lattice-evaluator = { workspace = true }
+lattice-extractor = { workspace = true }
 
 [tool.ruff]
 line-length = 100

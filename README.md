@@ -128,6 +128,15 @@ lattice/
 
 ## Development
 
+### Pre-commit Hooks
+
+This repository uses `pre-commit` for local guardrails.
+
+```bash
+uv pip install pre-commit
+pre-commit install
+```
+
 ### Adding a new worker
 
 1. Create directory in `apps/workers/<worker-name>`
