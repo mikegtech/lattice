@@ -13,6 +13,12 @@
 		"db:migrate": "pnpm --filter @lattice/mail-parser db:migrate",
 		"docker:up": "docker compose -f infra/local/compose/lattice-core.yml -f infra/local/compose/datadog.yml up -d",
 		"docker:down": "docker compose -f infra/local/compose/lattice-core.yml -f infra/local/compose/datadog.yml down",
+		"docker:build:mail-parser": "docker build -t lattice-mail-parser -f apps/workers/mail-parser/Dockerfile .",
+		"docker:build:mail-chunker": "docker build -t lattice-mail-chunker -f apps/workers/mail-chunker/Dockerfile .",
+		"docker:build:mail-embedder": "docker build -t lattice-mail-embedder -f apps/workers/mail-embedder/Dockerfile .",
+		"docker:build:mail-upserter": "docker build -t lattice-mail-upserter -f apps/workers/mail-upserter/Dockerfile .",
+		"docker:build:mail-deleter": "docker build -t lattice-mail-deleter -f apps/workers/mail-deleter/Dockerfile .",
+		"docker:build:audit-writer": "docker build -t lattice-audit-writer -f apps/workers/audit-writer/Dockerfile .",
 		"generate:worker": "tsx tools/generators/new-worker/generate.ts"
 	},
 	"devDependencies": {
