@@ -38,7 +38,7 @@ repos:
     hooks:
       - id: biome
         name: biome (lint + format)
-        entry: pnpm exec biome check --write
+        entry: npx @biomejs/biome check --write
         language: system
         files: \.(ts|tsx|js|jsx|json)$
         exclude: (node_modules|dist|\.secrets\.baseline)
