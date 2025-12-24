@@ -26,7 +26,7 @@ Gmail API → Airflow → Kafka → Workers → Postgres/Milvus
 | **Airflow** | Orchestrates sync (incremental/backfill) |
 | **Kafka (Confluent Cloud)** | Event backbone |
 | **mail-parser** | Parses raw emails, stores in Postgres |
-| **mail-chunker** | Splits text into chunks (planned) |
+| **mail-chunker** | Splits text into embedding-ready chunks |
 | **mail-embedder** | Generates embeddings (planned) |
 | **mail-upserter** | Upserts to Milvus (planned) |
 | **Postgres** | System of record + FTS |
@@ -65,8 +65,14 @@ pnpm build
 ### Running Locally
 
 ```bash
-# Start the mail-parser worker (connects to Confluent Cloud)
+# Start the mail-parser worker
 cd apps/workers/mail-parser
+cp .env.example .env
+pnpm dev
+
+# Start the mail-chunker worker (in another terminal)
+cd apps/workers/mail-chunker
+cp .env.example .env
 pnpm dev
 
 # Access Airflow UI
@@ -93,12 +99,14 @@ docker compose -f infra/local/compose/lattice-core.yml \
 lattice/
 ├── apps/
 │   └── workers/              # Kafka workers (TypeScript)
-│       └── mail-parser/      # Parses raw emails
+│       ├── mail-parser/      # Parses raw emails
+│       └── mail-chunker/     # Chunks text for embedding
 ├── packages/                 # Shared libraries
 │   ├── core-config/          # Configuration management
 │   ├── core-telemetry/       # Datadog integration
 │   ├── core-kafka/           # Kafka producer/consumer
-│   └── core-contracts/       # TypeScript types
+│   ├── core-contracts/       # TypeScript types
+│   └── worker-base/          # NestJS worker base classes
 ├── python/
 │   ├── dags/                 # Airflow DAGs
 │   └── libs/                 # Python libraries
@@ -108,6 +116,9 @@ lattice/
 │   └── local/
 │       ├── compose/          # Docker Compose files
 │       └── postgres/         # Migrations
+├── tools/
+│   └── generators/           # Code generators
+│       └── new-worker/       # Worker template generator
 └── docs/
     ├── architecture/         # Architecture docs
     └── telemetry-tags.md     # Observability standards
@@ -130,10 +141,20 @@ lattice/
 
 ### Adding a new worker
 
-1. Create directory in `apps/workers/<worker-name>`
-2. Copy package.json structure from mail-parser
-3. Implement using `@lattice/core-kafka` consumer
-4. Add to docker-compose if needed
+Use the generator script:
+
+```bash
+pnpm generate:worker my-worker-name
+```
+
+This creates a complete NestJS worker with:
+- Standard folder structure
+- Configuration module
+- Health endpoints
+- Kafka consumer/producer
+- Test setup
+
+See [docs/architecture/worker-template.md](docs/architecture/worker-template.md) for details.
 
 ### Modifying schemas
 

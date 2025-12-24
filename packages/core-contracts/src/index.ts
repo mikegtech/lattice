@@ -3,6 +3,7 @@ export type {
   MailRawPayload,
   MailParsePayload,
   MailChunkPayload,
+  MailChunkSummaryPayload,
   MailEmbedPayload,
   MailUpsertPayload,
   MailDeletePayload,
@@ -10,6 +11,8 @@ export type {
   EmailHeaders,
   EmailBody,
   Attachment,
+  ChunkSourceType,
+  SectionType,
 } from './mail.js';
 
 // DLQ and audit payloads
