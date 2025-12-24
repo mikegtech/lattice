@@ -16,7 +16,7 @@
 		"dev": "tsc --watch",
 		"clean": "rm -rf dist",
 		"typecheck": "tsc --noEmit",
-		"lint": "eslint src"
+		"lint": "biome check src"
 	},
 	"devDependencies": {
 		"@types/node": "^20.10.0",
