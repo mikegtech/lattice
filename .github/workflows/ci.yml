@@ -19,7 +19,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: "9"
+          version: "9.15.0"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -44,7 +44,7 @@ jobs:
         run: pre-commit run --all-files
 
   node:
-    name: node (build + test)
+    name: node (build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: "9"
+          version: "9.15.0"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
