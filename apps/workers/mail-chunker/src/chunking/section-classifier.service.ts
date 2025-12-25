@@ -1,6 +1,8 @@
 import type { SectionType } from "@lattice/core-contracts";
 import { Injectable } from "@nestjs/common";
 
+export const SECTION_CLASSIFIER_SERVICE = "SECTION_CLASSIFIER_SERVICE";
+
 /**
  * Email section classification service.
  * Identifies semantic sections within email body text.

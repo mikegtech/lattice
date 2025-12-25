@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
+export const TOKENIZER_SERVICE = "TOKENIZER_SERVICE";
+
 /**
  * Token estimation service.
  *

@@ -18,7 +18,7 @@ export { LoggerService, LOGGER } from "./telemetry/logger.service.js";
 // Health module
 export { HealthModule } from "./health/health.module.js";
 export { HealthController } from "./health/health.controller.js";
-export { HealthService } from "./health/health.service.js";
+export { HealthService, HEALTH_SERVICE } from "./health/health.service.js";
 
 // Lifecycle module
 export { LifecycleModule } from "./lifecycle/lifecycle.module.js";

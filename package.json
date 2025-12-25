@@ -10,6 +10,8 @@
 		"test": "pnpm -r test",
 		"typecheck": "pnpm -r typecheck",
 		"clean": "pnpm -r clean",
+		"telemetry:lint": "npx tsx tools/scripts/telemetry-lint.ts",
+		"compose:validate": "npx tsx tools/scripts/compose-validate.ts",
 		"db:migrate": "pnpm --filter @lattice/mail-parser db:migrate",
 		"docker:up": "docker compose -f infra/local/compose/lattice-core.yml -f infra/local/compose/datadog.yml up -d",
 		"docker:up:workers": "docker compose -f infra/local/compose/lattice-core.yml -f infra/local/compose/lattice-workers.yml up -d mail-parser mail-chunker",
@@ -30,6 +32,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",
 		"@types/node": "^20.10.0",
+		"tsx": "^4.7.0",
 		"typescript": "^5.3.0"
 	},
 	"engines": {

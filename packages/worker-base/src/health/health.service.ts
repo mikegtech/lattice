@@ -7,6 +7,7 @@ export interface DatabaseHealthCheck {
 }
 
 export const DATABASE_HEALTH = "DATABASE_HEALTH";
+export const HEALTH_SERVICE = "HEALTH_SERVICE";
 
 @Injectable()
 export class HealthService {

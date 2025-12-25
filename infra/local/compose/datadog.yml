@@ -19,10 +19,15 @@ services:
       DD_APM_ENABLED: "true"
       DD_APM_NON_LOCAL_TRAFFIC: "true"
 
-      # Logs Configuration
+      # Logs Configuration - only collect from lattice containers
       DD_LOGS_ENABLED: "true"
       DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
-      DD_CONTAINER_EXCLUDE: "name:lattice-datadog-agent"
+      DD_CONTAINER_INCLUDE_LOGS: "name:lattice-.*"
+      DD_CONTAINER_EXCLUDE_LOGS: "name:lattice-datadog-agent"
+
+      # Container metrics - only from lattice containers
+      DD_CONTAINER_INCLUDE_METRICS: "name:lattice-.*"
+      DD_CONTAINER_EXCLUDE_METRICS: "name:lattice-datadog-agent"
 
       # Process monitoring
       DD_PROCESS_AGENT_ENABLED: "true"
@@ -51,4 +56,4 @@ services:
 networks:
   lattice-network:
     external: true
-    name: lattice-local_lattice-network
+    name: compose_lattice-network
