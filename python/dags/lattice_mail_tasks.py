@@ -146,10 +146,10 @@ def process_gmail_account_incremental(
         except Exception as e:
             # History may be stale, fall back to query
             logger.warning("History API failed, falling back to query: %s", e)
-            message_ids, _ = gmail.list_message_ids_by_query(
-                "newer_than:1d",
-                max_results=max_messages,
-            )
+            # Exclude already processed messages (those labeled with Lattice/<alias>)
+            exclusion_label = f"Lattice/{alias}"
+            query = f"newer_than:1d -label:{exclusion_label}"
+            message_ids, _ = gmail.list_message_ids_by_query(query, max_results=max_messages)
     else:
         # No watermark - initial sync via query
         message_ids, _ = gmail.list_message_ids_by_query(
@@ -333,6 +333,8 @@ def process_imap_account_incremental(
         logger.info("Found %d new messages in %s", len(uids), source_folder)
 
         newest_uid = since_uid
+        last_success_uid = since_uid
+
         for uid in uids:
             try:
                 # 1. Fetch message
@@ -399,6 +401,9 @@ def process_imap_account_incremental(
                 imap.move_to_alias_folder(source_folder, uid, alias)
                 result.messages_post_processed += 1
 
+                # Advance watermark only past messages that completed post-processing
+                last_success_uid = max(last_success_uid, uid)
+
             except Exception as e:
                 result.errors.append(f"UID {uid}: {e}")
                 logger.exception("Failed to process IMAP message")
@@ -407,14 +412,14 @@ def process_imap_account_incremental(
         if producer:
             producer.flush()
 
-        # Update watermark
-        if newest_uid > since_uid:
+        # Update watermark ONLY to the highest UID that fully succeeded (store+publish+post-process)
+        if last_success_uid > since_uid:
             watermark_store.upsert_imap_watermark(
                 tenant_id=tenant_id,
                 account_id=account_id,
                 scope=source_folder,
                 uidvalidity=uidvalidity,
-                last_uid=newest_uid,
+                last_uid=last_success_uid,
             )
             result.watermark_updated = True
 
