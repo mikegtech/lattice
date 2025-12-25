@@ -19,6 +19,18 @@ export const OPTIONAL_TAGS = [
 ] as const;
 
 /**
+ * Approved additional dimensions for metrics (low-cardinality)
+ * These are acceptable in addition to required/optional tags
+ */
+export const APPROVED_METRIC_DIMENSIONS = [
+	"error_code",
+	"reason",
+	"status",
+	"operation",
+	"topic",
+] as const;
+
+/**
  * High-cardinality tags that should NEVER be used as metric tags
  * These are acceptable in logs and trace attributes only
  */
@@ -36,7 +48,20 @@ export const HIGH_CARDINALITY_TAGS = [
 
 export type RequiredTag = (typeof REQUIRED_TAGS)[number];
 export type OptionalTag = (typeof OPTIONAL_TAGS)[number];
+export type ApprovedMetricDimension =
+	(typeof APPROVED_METRIC_DIMENSIONS)[number];
 export type HighCardinalityTag = (typeof HIGH_CARDINALITY_TAGS)[number];
+
+/**
+ * All allowed keys for metric tags
+ */
+export const ALLOWED_METRIC_KEYS = [
+	...REQUIRED_TAGS,
+	...OPTIONAL_TAGS,
+	...APPROVED_METRIC_DIMENSIONS,
+] as const;
+
+export type AllowedMetricKey = (typeof ALLOWED_METRIC_KEYS)[number];
 
 export interface ServiceTags {
 	env: string;
@@ -53,6 +78,12 @@ export interface ServiceTags {
 export interface MetricTags extends ServiceTags {
 	// Metric tags must NOT include high-cardinality fields
 	// This type enforces that at compile time
+	// Approved dimensions for metrics
+	error_code?: string;
+	reason?: string;
+	status?: string;
+	operation?: string;
+	topic?: string;
 }
 
 export interface LogTags extends ServiceTags {
@@ -64,6 +95,17 @@ export interface LogTags extends ServiceTags {
 	chunk_id?: string;
 	trace_id?: string;
 	span_id?: string;
+	message_id?: string;
+	// Also allow metric dimensions
+	error_code?: string;
+	reason?: string;
+	status?: string;
+	operation?: string;
+}
+
+export interface TraceTags extends LogTags {
+	// Trace span attributes can include high-cardinality fields
+	// Same as LogTags, included for clarity
 }
 
 /**
@@ -103,7 +145,47 @@ export function isHighCardinality(tagName: string): boolean {
 }
 
 /**
+ * Check if a tag key is allowed for metrics
+ */
+export function isAllowedMetricKey(tagName: string): boolean {
+	return ALLOWED_METRIC_KEYS.includes(tagName as AllowedMetricKey);
+}
+
+/**
+ * Error thrown when high-cardinality tags are used in metrics
+ */
+export class HighCardinalityMetricError extends Error {
+	constructor(
+		public readonly forbiddenKeys: string[],
+		context?: string,
+	) {
+		super(
+			`High-cardinality tags not allowed in metrics${context ? ` (${context})` : ""}: ${forbiddenKeys.join(", ")}. ` +
+				"These tags cause metric cardinality explosion. Use forLog() or forTrace() instead.",
+		);
+		this.name = "HighCardinalityMetricError";
+	}
+}
+
+/**
+ * Validate that metric tags do not contain high-cardinality keys.
+ * Throws HighCardinalityMetricError if forbidden keys are found.
+ */
+export function validateMetricTags(
+	tags: Record<string, string | undefined>,
+	context?: string,
+): void {
+	const forbiddenKeys = Object.keys(tags).filter((key) =>
+		isHighCardinality(key),
+	);
+	if (forbiddenKeys.length > 0) {
+		throw new HighCardinalityMetricError(forbiddenKeys, context);
+	}
+}
+
+/**
  * Filter out high-cardinality tags for metric emissions
+ * @deprecated Use validateMetricTags instead to enforce compliance
  */
 export function filterMetricTags(
 	tags: Record<string, string | undefined>,
@@ -141,11 +223,23 @@ export function createTagBuilder(identity: ServiceIdentity) {
 		},
 
 		/**
-		 * Build tags for metrics (no high-cardinality)
+		 * Build tags for metrics (no high-cardinality).
+		 * THROWS if high-cardinality tags are passed.
+		 * Only accepts: required tags, optional tags, and approved metric dimensions
+		 * (error_code, reason, status, operation, topic).
 		 */
-		forMetric(extra?: Partial<ServiceTags>): MetricTags {
+		forMetric(extra?: Partial<MetricTags>): MetricTags {
 			const tags = { ...baseTags, ...extra };
-			return filterMetricTags(tags);
+			// Validate that no high-cardinality tags are present
+			validateMetricTags(tags, `forMetric(${identity.name})`);
+			// Filter undefined values
+			const filtered: Record<string, string> = {};
+			for (const [key, value] of Object.entries(tags)) {
+				if (value !== undefined) {
+					filtered[key] = value;
+				}
+			}
+			return filtered as unknown as MetricTags;
 		},
 
 		/**
@@ -153,6 +247,13 @@ export function createTagBuilder(identity: ServiceIdentity) {
 		 */
 		forLog(extra?: Record<string, string | undefined>): LogTags {
 			return { ...baseTags, ...extra } as LogTags;
+		},
+
+		/**
+		 * Build tags for trace span attributes (can include high-cardinality)
+		 */
+		forTrace(extra?: Record<string, string | undefined>): TraceTags {
+			return { ...baseTags, ...extra } as TraceTags;
 		},
 
 		/**

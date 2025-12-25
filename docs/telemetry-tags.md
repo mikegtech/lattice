@@ -42,9 +42,22 @@ They are acceptable in logs and trace span attributes only.
 | `span_id` | Span ID | Log-trace correlation |
 | `message_id` | Kafka message ID | Message tracing |
 
+## Approved Metric Dimensions
+
+In addition to the required and optional tags, these low-cardinality dimensions are
+allowed on metrics for categorization:
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `error_code` | Error classification code | `E001`, `TIMEOUT` |
+| `reason` | Skip/failure reason | `duplicate`, `invalid` |
+| `status` | Operation status | `success`, `failed` |
+| `operation` | Operation type | `insert`, `update` |
+| `topic` | Kafka topic name | `lattice.mail.raw.v1` |
+
 ## Cardinality Rules
 
-1. **Metrics**: Only use low-cardinality tags (required + optional context tags)
+1. **Metrics**: Only use low-cardinality tags (required + optional + approved dimensions)
 2. **Logs**: Can include high-cardinality tags for debugging
 3. **Traces**: Can include high-cardinality tags as span attributes
 
@@ -125,4 +138,53 @@ logger.info('Email processed', tagBuilder.forLog({
   email_id: envelope.payload.email_id,
   stage: 'parse',
 }));
+
+// For trace span attributes (can include high-cardinality)
+const spanTags = tagBuilder.forTrace({
+  email_id: envelope.payload.email_id,
+  account_id: envelope.account_id,
+});
+```
+
+## Enforcement
+
+Telemetry compliance is enforced at multiple levels:
+
+### Runtime Enforcement
+
+The `tagBuilder.forMetric()` function **throws** a `HighCardinalityMetricError` if
+any forbidden high-cardinality tags are passed. This catches violations during
+development and testing.
+
+```typescript
+// This will throw HighCardinalityMetricError at runtime
+tagBuilder.forMetric({ email_id: 'uuid' }); // ❌ Throws!
+
+// Use forLog() or forTrace() for high-cardinality data
+tagBuilder.forLog({ email_id: 'uuid' }); // ✅ OK
+```
+
+### CI Enforcement
+
+Two validation scripts run in CI (policy.yml):
+
+1. **`pnpm run telemetry:lint`** - Scans TypeScript code for forbidden metric tags
+2. **`pnpm run compose:validate`** - Validates worker compose files have required env vars
+
+### Required Environment Variables
+
+All workers must define these env vars in their compose configuration:
+
+```yaml
+environment:
+  # Datadog unified service tagging
+  DD_ENV: local
+  DD_SERVICE: my-worker
+  DD_VERSION: "0.1.0"
+  # Lattice context
+  LATTICE_TEAM: platform
+  LATTICE_CLOUD: local
+  LATTICE_REGION: local
+  LATTICE_DOMAIN: mail
+  LATTICE_STAGE: parse
 ```

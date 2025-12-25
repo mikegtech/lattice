@@ -7,16 +7,29 @@ import {
 	type WorkerConfig,
 } from "@lattice/worker-base";
 import { Module } from "@nestjs/common";
-import { ChunkingConfig } from "../chunking/chunking.config.js";
-import { ChunkingModule } from "../chunking/chunking.module.js";
-import { ChunkingService } from "../chunking/chunking.service.js";
-import { ChunkRepository } from "../db/chunk.repository.js";
+import type pg from "pg";
+import {
+	CHUNKING_CONFIG,
+	type ChunkingConfig,
+} from "../chunking/chunking.config.js";
+import {
+	CHUNKING_SERVICE,
+	ChunkingModule,
+} from "../chunking/chunking.module.js";
+import type { ChunkingService } from "../chunking/chunking.service.js";
+import { CHUNK_REPOSITORY, ChunkRepository } from "../db/chunk.repository.js";
+import { DB_POOL } from "../db/database.module.js";
 import { MailChunkerService } from "./worker.service.js";
 
 @Module({
 	imports: [ChunkingModule],
 	providers: [
-		ChunkRepository,
+		{
+			provide: CHUNK_REPOSITORY,
+			useFactory: (pool: pg.Pool, logger: LoggerService) =>
+				new ChunkRepository(pool, logger),
+			inject: [DB_POOL, LOGGER],
+		},
 		{
 			provide: MailChunkerService,
 			useFactory: (
@@ -43,9 +56,9 @@ import { MailChunkerService } from "./worker.service.js";
 				TelemetryService,
 				LOGGER,
 				WORKER_CONFIG,
-				ChunkRepository,
-				ChunkingService,
-				ChunkingConfig,
+				CHUNK_REPOSITORY,
+				CHUNKING_SERVICE,
+				CHUNKING_CONFIG,
 			],
 		},
 	],

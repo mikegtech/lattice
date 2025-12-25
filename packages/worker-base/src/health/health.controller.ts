@@ -1,5 +1,5 @@
-import { Controller, Get, HttpCode, HttpStatus } from "@nestjs/common";
-import type { HealthService } from "./health.service.js";
+import { Controller, Get, HttpCode, HttpStatus, Inject } from "@nestjs/common";
+import { HEALTH_SERVICE, type HealthService } from "./health.service.js";
 
 export interface HealthResponse {
 	status: "ok" | "degraded" | "unhealthy";
@@ -12,7 +12,9 @@ export interface HealthResponse {
 
 @Controller("health")
 export class HealthController {
-	constructor(private readonly healthService: HealthService) {}
+	constructor(
+		@Inject(HEALTH_SERVICE) private readonly healthService: HealthService,
+	) {}
 
 	/**
 	 * Liveness probe - is the process alive?

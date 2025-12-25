@@ -4,6 +4,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import type pg from "pg";
 import { DB_POOL } from "./database.module.js";
 
+export const CHUNK_REPOSITORY = "CHUNK_REPOSITORY";
+
 export interface ChunkRecord {
 	email_id: string;
 	attachment_id?: string;

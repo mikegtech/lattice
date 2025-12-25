@@ -24,9 +24,10 @@ x-postgres-env: &postgres-env
 
 x-datadog-env: &datadog-env
   DD_ENV: local
-  DD_AGENT_HOST: ${DD_AGENT_HOST:-}
+  DD_AGENT_HOST: ${DD_AGENT_HOST:-lattice-datadog-agent}
   DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
-  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-true}
+  DD_DOGSTATSD_PORT: ${DD_DOGSTATSD_PORT:-8125}
 
 services:
   # ==========================================================================

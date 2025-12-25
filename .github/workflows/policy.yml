@@ -73,6 +73,12 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      - name: Telemetry Lint
+        run: pnpm run telemetry:lint
+
+      - name: Compose Validation
+        run: pnpm run compose:validate
+
   python:
     name: python-lint-format
     runs-on: ubuntu-latest

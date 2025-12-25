@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
+export const CHUNKING_CONFIG = "CHUNKING_CONFIG";
+
 /**
  * Chunking configuration loaded from environment variables
  */

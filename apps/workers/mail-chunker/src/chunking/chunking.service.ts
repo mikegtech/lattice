@@ -3,9 +3,15 @@ import type { ChunkSourceType, SectionType } from "@lattice/core-contracts";
 import { LOGGER, type LoggerService } from "@lattice/worker-base";
 import { Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
-import type { ChunkingConfig } from "./chunking.config.js";
-import type { SectionClassifierService } from "./section-classifier.service.js";
-import type { TokenizerService } from "./tokenizer.service.js";
+import { CHUNKING_CONFIG, type ChunkingConfig } from "./chunking.config.js";
+import {
+	SECTION_CLASSIFIER_SERVICE,
+	type SectionClassifierService,
+} from "./section-classifier.service.js";
+import {
+	TOKENIZER_SERVICE,
+	type TokenizerService,
+} from "./tokenizer.service.js";
 
 export interface ChunkInput {
 	emailId: string;
@@ -45,8 +51,9 @@ export interface GeneratedChunk {
 @Injectable()
 export class ChunkingService {
 	constructor(
-		private readonly config: ChunkingConfig,
-		private readonly tokenizer: TokenizerService,
+		@Inject(CHUNKING_CONFIG) private readonly config: ChunkingConfig,
+		@Inject(TOKENIZER_SERVICE) private readonly tokenizer: TokenizerService,
+		@Inject(SECTION_CLASSIFIER_SERVICE)
 		private readonly classifier: SectionClassifierService,
 		@Inject(LOGGER) private readonly logger: LoggerService,
 	) {}
