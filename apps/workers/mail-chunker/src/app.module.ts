@@ -12,10 +12,14 @@ import { WorkerModule } from "./worker/worker.module.js";
 @Module({
 	imports: [
 		// Core infrastructure modules from worker-base
-		WorkerConfigModule,
+		WorkerConfigModule.forRoot({
+			envFilePath: ".env",
+		}),
 		TelemetryModule,
 		LifecycleModule,
-		KafkaModule,
+		KafkaModule.forRoot({
+			expectedSchemaVersion: "v1",
+		}),
 		HealthModule,
 
 		// Worker-specific modules

@@ -1,10 +1,6 @@
-import {
-	Inject,
-	Injectable,
-	type OnApplicationBootstrap,
-} from "@nestjs/common";
-import { WORKER_CONFIG, type WorkerConfig } from "../config/config.module.js";
-import { LOGGER, type LoggerService } from "../telemetry/logger.service.js";
+import { Injectable, type OnApplicationBootstrap } from "@nestjs/common";
+import type { WorkerConfig } from "../config/config.module.js";
+import type { LoggerService } from "../telemetry/logger.service.js";
 import type { TelemetryService } from "../telemetry/telemetry.service.js";
 import type {
 	KafkaMessage,
@@ -33,6 +29,7 @@ export type WorkerHandler<TIn, TOut = void> = (
 /**
  * Base class for Kafka worker services.
  * Extend this class and implement the `process` method.
+ * Dependencies are injected via the child class constructor.
  */
 @Injectable()
 export abstract class BaseWorkerService<TIn, TOut = void>
@@ -41,8 +38,8 @@ export abstract class BaseWorkerService<TIn, TOut = void>
 	constructor(
 		protected readonly kafka: KafkaService,
 		protected readonly telemetry: TelemetryService,
-		@Inject(LOGGER) protected readonly logger: LoggerService,
-		@Inject(WORKER_CONFIG) protected readonly config: WorkerConfig,
+		protected readonly logger: LoggerService,
+		protected readonly config: WorkerConfig,
 	) {}
 
 	async onApplicationBootstrap(): Promise<void> {

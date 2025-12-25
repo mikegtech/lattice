@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import type { KafkaService } from "../kafka/kafka.service.js";
 import type { HealthResponse } from "./health.controller.js";
 
@@ -12,8 +12,6 @@ export const DATABASE_HEALTH = "DATABASE_HEALTH";
 export class HealthService {
 	constructor(
 		private readonly kafka: KafkaService,
-		@Optional()
-		@Inject(DATABASE_HEALTH)
 		private readonly dbHealth?: DatabaseHealthCheck,
 	) {}
 

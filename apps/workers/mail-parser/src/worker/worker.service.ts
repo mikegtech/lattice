@@ -2,15 +2,13 @@ import type { MailParsePayload, MailRawPayload } from "@lattice/core-contracts";
 import {
 	BaseWorkerService,
 	type KafkaService,
-	LOGGER,
 	type LoggerService,
 	type TelemetryService,
-	WORKER_CONFIG,
 	type WorkerConfig,
 	type WorkerContext,
 	classifyError,
 } from "@lattice/worker-base";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import type {
 	AttachmentRecord,
 	EmailRecord,
@@ -26,8 +24,8 @@ export class MailParserService extends BaseWorkerService<
 	constructor(
 		kafka: KafkaService,
 		telemetry: TelemetryService,
-		@Inject(LOGGER) logger: LoggerService,
-		@Inject(WORKER_CONFIG) config: WorkerConfig,
+		logger: LoggerService,
+		config: WorkerConfig,
 		private readonly emailRepository: EmailRepository,
 		private readonly parser: ParserService,
 	) {

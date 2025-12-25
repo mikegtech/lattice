@@ -1,0 +1,117 @@
+# Lattice Workers - NestJS Kafka Workers
+# Run with: docker compose -f lattice-core.yml -f lattice-workers.yml up -d
+#
+# Workers:
+#   - mail-parser: Parses raw RFC822 emails into structured format
+#   - mail-chunker: Chunks parsed emails for embedding
+
+x-common-env: &common-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+  LATTICE_TEAM: platform
+  LATTICE_CLOUD: local
+  LATTICE_REGION: local
+
+x-kafka-env: &kafka-env
+  KAFKA_BROKERS: ${KAFKA_BROKERS:-pkc-619z3.us-east1.gcp.confluent.cloud:9092}
+  KAFKA_SSL: "true"
+  KAFKA_SASL_MECHANISM: plain
+  KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-}
+  KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:-}
+
+x-postgres-env: &postgres-env
+  DATABASE_URL: postgresql://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/lattice
+
+x-datadog-env: &datadog-env
+  DD_ENV: local
+  DD_AGENT_HOST: ${DD_AGENT_HOST:-}
+  DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
+  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+
+services:
+  # ==========================================================================
+  # Mail Parser Worker
+  # Consumes: lattice.mail.raw.v1
+  # Produces: lattice.mail.parse.v1
+  # ==========================================================================
+  mail-parser:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-parser/Dockerfile
+    container_name: lattice-mail-parser
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-parser
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: parse
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-parser
+      KAFKA_GROUP_ID: mail-parser-group
+      KAFKA_TOPIC_IN: lattice.mail.raw.v1
+      KAFKA_TOPIC_OUT: lattice.mail.parse.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.parse.v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3100:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail Chunker Worker
+  # Consumes: lattice.mail.parse.v1
+  # Produces: lattice.mail.chunk.v1
+  # ==========================================================================
+  mail-chunker:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-chunker/Dockerfile
+    container_name: lattice-mail-chunker
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-chunker
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: chunk
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-chunker
+      KAFKA_GROUP_ID: mail-chunker-group
+      KAFKA_TOPIC_IN: lattice.mail.parse.v1
+      KAFKA_TOPIC_OUT: lattice.mail.chunk.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.chunk.v1
+      # Chunking config
+      CHUNK_TARGET_TOKENS: "400"
+      CHUNK_OVERLAP_TOKENS: "50"
+      CHUNK_MAX_TOKENS: "512"
+      CHUNKING_VERSION: v1
+      NORMALIZATION_VERSION: v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3101:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+networks:
+  lattice-network:
+    external: true
+    name: compose_lattice-network
