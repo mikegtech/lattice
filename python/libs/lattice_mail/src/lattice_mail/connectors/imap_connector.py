@@ -459,6 +459,8 @@ class ImapConnector:
         """
         Mark a message as deleted (but don't expunge yet).
 
+        Uses +FLAGS.SILENT to suppress untagged FETCH response.
+
         Args:
             folder: Folder name
             uid: Message UID
@@ -466,7 +468,8 @@ class ImapConnector:
         conn = self._ensure_connected()
         self.select_folder(folder)
 
-        status, data = conn.uid("store", str(uid), "+FLAGS", "\\Deleted")
+        # Use .SILENT to suppress the untagged FETCH response
+        status, data = conn.uid("store", str(uid), "+FLAGS.SILENT", "(\\Deleted)")
         if status != "OK":
             raise RuntimeError(f"Failed to mark message UID {uid} as deleted: {data}")
 

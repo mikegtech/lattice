@@ -9,11 +9,11 @@ x-common-env: &common-env
   PIPELINE: mail-indexing
 
 x-kafka-env: &kafka-env
-  KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-pkc-xxxxx.us-central1.gcp.confluent.cloud:9092}
-  KAFKA_SECURITY_PROTOCOL: SASL_SSL
-  KAFKA_SASL_MECHANISM: PLAIN
-  KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-}
-  KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:-}
+  KAFKA_BROKERS: ${KAFKA_BROKERS:-pkc-619z3.us-east1.gcp.confluent.cloud:9092}
+  KAFKA_SSL: "true"
+  KAFKA_SASL_MECHANISM: plain
+  KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-CHKLV6WOMMWU4C2C}
+  KAFKA_SASL_PASSWORD: "${KAFKA_SASL_PASSWORD:-cfltpBOwy5r+NAyZOkWntNr7rjATFweaDJ3Vy/w4Jzb3lbZtpx9E8x/UFbhf0MXw}"
 
 x-postgres-env: &postgres-env
   POSTGRES_HOST: postgres
@@ -203,9 +203,18 @@ services:
     container_name: lattice-mail-parser
     environment:
       <<: [*common-env, *kafka-env, *postgres-env]
-      SERVICE_NAME: mail-parser
-      SERVICE_VERSION: "0.1.0"
+      # Lattice tags
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: parse
+      # Database
+      DATABASE_URL: postgresql://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/lattice
+      # Kafka
+      KAFKA_CLIENT_ID: mail-parser
       KAFKA_GROUP_ID: mail-parser-group
+      KAFKA_TOPIC_IN: lattice.mail.raw.v1
+      KAFKA_TOPIC_OUT: lattice.mail.parse.v1
+      KAFKA_TOPIC_DLQ: lattice.mail.raw.v1.dlq
+      # Datadog
       DD_ENV: dev
       DD_SERVICE: mail-parser
       DD_VERSION: "0.1.0"

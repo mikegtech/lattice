@@ -3,6 +3,9 @@ name = "lattice"
 version = "0.1.0"
 description = "Lattice email indexing pipeline - Python components"
 requires-python = ">=3.11"
+dependencies = [
+    "loguru>=0.7.3",
+]
 
 [project.optional-dependencies]
 dev = [

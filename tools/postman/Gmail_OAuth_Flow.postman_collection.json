@@ -1,0 +1,272 @@
+{
+	"info": {
+		"name": "Gmail OAuth Flow",
+		"description": "Collection to obtain Gmail OAuth2 refresh token for Lattice mail pipeline.\n\n## Setup Instructions\n\n1. Go to Google Cloud Console → APIs & Services → Credentials\n2. Create OAuth 2.0 Client ID (Desktop app type)\n3. Enable Gmail API in your project\n4. Set the `client_id` and `client_secret` variables below\n\n## Flow\n\n1. **Step 1**: Copy the auth URL from \"1. Get Authorization URL\" and open in browser\n2. **Step 2**: Sign in and authorize, copy the `code` from the redirect URL\n3. **Step 3**: Run \"2. Exchange Code for Tokens\" with the code\n4. **Step 4**: Copy the `refresh_token` from the response to your .env file",
+		"_postman_id": "gmail-oauth-lattice",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "client_id",
+			"value": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+			"type": "string"
+		},
+		{
+			"key": "client_secret",
+			"value": "YOUR_CLIENT_SECRET",
+			"type": "string"
+		},
+		{
+			"key": "redirect_uri",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "auth_code",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Get Authorization URL (Copy to Browser)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://accounts.google.com/o/oauth2/v2/auth?client_id={{client_id}}&redirect_uri={{redirect_uri}}&response_type=code&scope=https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify&access_type=offline&prompt=consent",
+					"protocol": "https",
+					"host": ["accounts", "google", "com"],
+					"path": ["o", "oauth2", "v2", "auth"],
+					"query": [
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "{{redirect_uri}}"
+						},
+						{
+							"key": "response_type",
+							"value": "code"
+						},
+						{
+							"key": "scope",
+							"value": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify"
+						},
+						{
+							"key": "access_type",
+							"value": "offline"
+						},
+						{
+							"key": "prompt",
+							"value": "consent"
+						}
+					]
+				},
+				"description": "## How to Use\n\n1. Set your `client_id` in the collection variables\n2. Click \"Send\" or copy the URL\n3. Open the URL in your browser\n4. Sign in with your Google account\n5. Authorize the app\n6. You'll be redirected to `http://localhost:8080?code=XXXXX`\n7. Copy the `code` parameter value\n8. Paste it into the `auth_code` collection variable\n9. Proceed to Step 2"
+			},
+			"response": []
+		},
+		{
+			"name": "2. Exchange Code for Tokens",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"",
+							"if (jsonData.access_token) {",
+							"    pm.collectionVariables.set('access_token', jsonData.access_token);",
+							"    console.log('Access Token saved to collection variables');",
+							"}",
+							"",
+							"if (jsonData.refresh_token) {",
+							"    pm.collectionVariables.set('refresh_token', jsonData.refresh_token);",
+							"    console.log('Refresh Token saved to collection variables');",
+							"    console.log('');",
+							"    console.log('='.repeat(60));",
+							"    console.log('SUCCESS! Copy this refresh_token to your .env file:');",
+							"    console.log('='.repeat(60));",
+							"    console.log('GMAIL_REFRESH_TOKEN=' + jsonData.refresh_token);",
+							"    console.log('='.repeat(60));",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}"
+						},
+						{
+							"key": "code",
+							"value": "{{auth_code}}"
+						},
+						{
+							"key": "grant_type",
+							"value": "authorization_code"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "{{redirect_uri}}"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://oauth2.googleapis.com/token",
+					"protocol": "https",
+					"host": ["oauth2", "googleapis", "com"],
+					"path": ["token"]
+				},
+				"description": "## How to Use\n\n1. Make sure you've set `auth_code` from Step 1\n2. Make sure `client_id` and `client_secret` are set\n3. Click \"Send\"\n4. Copy the `refresh_token` from the response\n5. Add it to your .env file as `GMAIL_REFRESH_TOKEN=...`\n\n## Response\n\n```json\n{\n  \"access_token\": \"ya29.xxx\",\n  \"expires_in\": 3599,\n  \"refresh_token\": \"1//xxx\",  <-- THIS IS WHAT YOU NEED\n  \"scope\": \"...\",\n  \"token_type\": \"Bearer\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "3. Refresh Access Token (Optional)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"",
+							"if (jsonData.access_token) {",
+							"    pm.collectionVariables.set('access_token', jsonData.access_token);",
+							"    console.log('New Access Token saved');",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}"
+						},
+						{
+							"key": "refresh_token",
+							"value": "{{refresh_token}}"
+						},
+						{
+							"key": "grant_type",
+							"value": "refresh_token"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://oauth2.googleapis.com/token",
+					"protocol": "https",
+					"host": ["oauth2", "googleapis", "com"],
+					"path": ["token"]
+				},
+				"description": "Use this to get a new access token using your refresh token.\n\nThis is what the Lattice Gmail connector does automatically."
+			},
+			"response": []
+		},
+		{
+			"name": "4. Test - Get Gmail Profile",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+					"protocol": "https",
+					"host": ["gmail", "googleapis", "com"],
+					"path": ["gmail", "v1", "users", "me", "profile"]
+				},
+				"description": "Test that your tokens work by fetching your Gmail profile.\n\n## Expected Response\n\n```json\n{\n  \"emailAddress\": \"you@gmail.com\",\n  \"messagesTotal\": 12345,\n  \"threadsTotal\": 6789,\n  \"historyId\": \"123456789\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "5. Test - List Recent Messages",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:1d&maxResults=5",
+					"protocol": "https",
+					"host": ["gmail", "googleapis", "com"],
+					"path": ["gmail", "v1", "users", "me", "messages"],
+					"query": [
+						{
+							"key": "q",
+							"value": "newer_than:1d"
+						},
+						{
+							"key": "maxResults",
+							"value": "5"
+						}
+					]
+				},
+				"description": "List messages from the last day to verify read access."
+			},
+			"response": []
+		}
+	]
+}
