@@ -5,15 +5,13 @@ import type {
 import {
 	BaseWorkerService,
 	type KafkaService,
-	LOGGER,
 	type LoggerService,
 	type TelemetryService,
-	WORKER_CONFIG,
 	type WorkerConfig,
 	type WorkerContext,
 	classifyError,
 } from "@lattice/worker-base";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import type { ChunkingConfig } from "../chunking/chunking.config.js";
 import type {
 	ChunkingService,
@@ -29,8 +27,8 @@ export class MailChunkerService extends BaseWorkerService<
 	constructor(
 		kafka: KafkaService,
 		telemetry: TelemetryService,
-		@Inject(LOGGER) logger: LoggerService,
-		@Inject(WORKER_CONFIG) config: WorkerConfig,
+		logger: LoggerService,
+		config: WorkerConfig,
 		private readonly chunkRepository: ChunkRepository,
 		private readonly chunkingService: ChunkingService,
 		private readonly chunkingConfig: ChunkingConfig,

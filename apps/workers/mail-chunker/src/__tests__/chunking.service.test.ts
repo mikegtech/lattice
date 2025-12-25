@@ -99,13 +99,14 @@ describe("ChunkingService", () => {
 			const input = {
 				emailId: "test-email-123",
 				contentHash: "abc123",
-				textNormalized: "Short email.",
+				// Must be >= 20 chars to not be skipped
+				textNormalized: "This is a short email body.",
 			};
 
 			const chunks = service.chunkEmail(input);
 
 			expect(chunks.length).toBe(1);
-			expect(chunks[0]?.chunkText).toBe("Short email.");
+			expect(chunks[0]?.chunkText).toBe("This is a short email body.");
 			expect(chunks[0]?.sourceType).toBe("body");
 			expect(chunks[0]?.sectionType).toBe("body");
 		});
@@ -204,20 +205,22 @@ Best regards`,
 			const input = {
 				emailId: "test-email-123",
 				contentHash: "abc123",
-				textNormalized: "This is exactly forty characters long!!",
+				// 44 chars, which is >= 20 char minimum
+				textNormalized: "This is exactly forty-four characters long!!",
 			};
 
 			const chunks = service.chunkEmail(input);
 
-			expect(chunks[0]?.charCount).toBe(40);
-			expect(chunks[0]?.tokenCountEstimate).toBe(10); // 40 chars / 4 chars per token
+			expect(chunks[0]?.charCount).toBe(44);
+			expect(chunks[0]?.tokenCountEstimate).toBe(11); // 44 chars / 4 chars per token
 		});
 
 		it("should include versioning info", () => {
 			const input = {
 				emailId: "test-email-123",
 				contentHash: "abc123",
-				textNormalized: "Test content.",
+				// Must be >= 20 chars to not be skipped
+				textNormalized: "Test content for versioning check.",
 			};
 
 			const chunks = service.chunkEmail(input);

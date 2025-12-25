@@ -4,7 +4,6 @@ import {
 	validateEnvelope,
 } from "@lattice/core-kafka";
 import {
-	Inject,
 	Injectable,
 	type OnModuleDestroy,
 	type OnModuleInit,
@@ -16,8 +15,8 @@ import {
 	type Producer,
 } from "kafkajs";
 import { v4 as uuidv4 } from "uuid";
-import { WORKER_CONFIG, type WorkerConfig } from "../config/config.module.js";
-import { LOGGER, type LoggerService } from "../telemetry/logger.service.js";
+import type { WorkerConfig } from "../config/config.module.js";
+import type { LoggerService } from "../telemetry/logger.service.js";
 import type { TelemetryService } from "../telemetry/telemetry.service.js";
 
 export interface KafkaMessage<T = unknown> {
@@ -53,11 +52,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 	private readonly expectedSchemaVersion?: string;
 
 	constructor(
-		@Inject(WORKER_CONFIG) private readonly config: WorkerConfig,
-		@Inject("KAFKA_OPTIONS")
+		private readonly config: WorkerConfig,
 		private readonly options: { expectedSchemaVersion?: string },
 		private readonly telemetry: TelemetryService,
-		@Inject(LOGGER) private readonly logger: LoggerService,
+		private readonly logger: LoggerService,
 	) {
 		if (options.expectedSchemaVersion) {
 			this.expectedSchemaVersion = options.expectedSchemaVersion;

@@ -142,6 +142,84 @@ See `.env.example` for full configuration.
 
 Default port: 3001
 
+## Quick Local Test Procedure
+
+Test the chunker end-to-end with a single message:
+
+### 1. Start infrastructure
+```bash
+cd /path/to/lattice
+pnpm docker:up
+```
+
+### 2. Insert a test email in Postgres
+```bash
+psql "$DATABASE_URL" << 'EOF'
+INSERT INTO email (id, tenant_id, account_id, provider_message_id, content_hash, subject, from_address, received_at, fetched_at, text_normalized)
+VALUES (
+  'test-email-001',
+  'test-tenant',
+  'test-account',
+  'gmail-test-123',
+  'abc123hash',
+  'Test Subject for Chunking',
+  '{"address": "test@example.com"}'::jsonb,
+  NOW(),
+  NOW(),
+  'This is the body of the test email. It contains enough text to be chunked properly. The mail chunker worker will process this content and create embedding-ready chunks with deterministic hashes for deduplication.'
+);
+EOF
+```
+
+### 3. Produce a test parse event to Kafka
+```bash
+# Using kafkacat/kcat
+echo '{
+  "message_id": "test-msg-001",
+  "tenant_id": "test-tenant",
+  "account_id": "test-account",
+  "domain": "mail",
+  "stage": "parse",
+  "schema_version": "v1",
+  "created_at": "'$(date -Iseconds)'",
+  "source": {"service": "test", "version": "1.0.0"},
+  "data_classification": "internal",
+  "pii": {"contains_pii": false},
+  "payload": {
+    "provider_message_id": "gmail-test-123",
+    "email_id": "test-email-001",
+    "thread_id": "thread-123",
+    "content_hash": "abc123hash",
+    "headers": {
+      "subject": "Test Subject for Chunking",
+      "from": {"address": "test@example.com"},
+      "date": "'$(date -Iseconds)'"
+    },
+    "body": {
+      "text_normalized": "This is the body of the test email."
+    },
+    "attachments": [],
+    "parsed_at": "'$(date -Iseconds)'"
+  }
+}' | kcat -b localhost:9092 -t lattice.mail.parse.v1 -P
+```
+
+### 4. Run the worker
+```bash
+cd apps/workers/mail-chunker
+pnpm dev
+```
+
+### 5. Verify chunks in Postgres
+```bash
+psql "$DATABASE_URL" -c "SELECT chunk_id, chunk_index, total_chunks, char_count, section_type FROM email_chunk WHERE email_id = 'test-email-001';"
+```
+
+### 6. Verify output event in Kafka
+```bash
+kcat -b localhost:9092 -t lattice.mail.chunk.v1 -C -c 1 | jq .
+```
+
 ## TODO
 
 - [ ] Integrate actual tokenizer (tiktoken) for accurate token counts

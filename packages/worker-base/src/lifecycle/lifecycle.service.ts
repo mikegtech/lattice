@@ -1,10 +1,9 @@
 import {
 	type BeforeApplicationShutdown,
-	Inject,
 	Injectable,
 	type OnApplicationShutdown,
 } from "@nestjs/common";
-import { LOGGER, type LoggerService } from "../telemetry/logger.service.js";
+import type { LoggerService } from "../telemetry/logger.service.js";
 import type { TelemetryService } from "../telemetry/telemetry.service.js";
 
 export type ShutdownSignal = "SIGTERM" | "SIGINT" | "ERROR";
@@ -19,7 +18,7 @@ export class LifecycleService
 	private isShuttingDown = false;
 
 	constructor(
-		@Inject(LOGGER) private readonly logger: LoggerService,
+		private readonly logger: LoggerService,
 		private readonly telemetry: TelemetryService,
 	) {
 		// Register signal handlers

@@ -193,40 +193,6 @@ services:
     networks:
       - lattice-network
 
-  # ==========================================================================
-  # Mail Parser Worker
-  # ==========================================================================
-  mail-parser:
-    build:
-      context: ../../..
-      dockerfile: apps/workers/mail-parser/Dockerfile
-    container_name: lattice-mail-parser
-    environment:
-      <<: [*common-env, *kafka-env, *postgres-env]
-      # Lattice tags
-      LATTICE_DOMAIN: mail
-      LATTICE_STAGE: parse
-      # Database
-      DATABASE_URL: postgresql://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/lattice
-      # Kafka
-      KAFKA_CLIENT_ID: mail-parser
-      KAFKA_GROUP_ID: mail-parser-group
-      KAFKA_TOPIC_IN: lattice.mail.raw.v1
-      KAFKA_TOPIC_OUT: lattice.mail.parse.v1
-      KAFKA_TOPIC_DLQ: lattice.mail.raw.v1.dlq
-      # Datadog
-      DD_ENV: dev
-      DD_SERVICE: mail-parser
-      DD_VERSION: "0.1.0"
-      DD_AGENT_HOST: datadog-agent
-      DD_TRACE_AGENT_PORT: 8126
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - lattice-network
-
 volumes:
   postgres_data:
   etcd_data:
