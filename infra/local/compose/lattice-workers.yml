@@ -6,6 +6,7 @@
 #   - mail-chunker: Chunks parsed emails for embedding
 #   - mail-embedder: Generates embeddings for chunks and stores in Postgres
 #   - mail-upserter: Upserts embedding vectors to Milvus
+#   - mail-deleter: Handles email lifecycle deletions (vectors, postgres, storage)
 #   - audit-writer: Writes audit events to Postgres (terminal consumer)
 
 x-common-env: &common-env
@@ -31,6 +32,12 @@ x-datadog-env: &datadog-env
   DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
   DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-true}
   DD_DOGSTATSD_PORT: ${DD_DOGSTATSD_PORT:-8125}
+
+x-milvus-env: &milvus-env
+  MILVUS_HOST: milvus
+  MILVUS_PORT: "19530"
+  MILVUS_COLLECTION: email_chunks_v1
+  MILVUS_CONNECT_TIMEOUT_MS: "10000"
 
 services:
   # ==========================================================================
@@ -204,6 +211,46 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3103:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail Deleter Worker
+  # Consumes: lattice.mail.delete.v1
+  # Produces: lattice.mail.delete.completed.v1, lattice.audit.events.v1
+  # ==========================================================================
+  mail-deleter:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-deleter/Dockerfile
+    container_name: lattice-mail-deleter
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-deleter"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *milvus-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-deleter
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: delete
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-deleter
+      KAFKA_GROUP_ID: mail-deleter-group
+      KAFKA_TOPIC_IN: lattice.mail.delete.v1
+      KAFKA_TOPIC_OUT: lattice.mail.delete.completed.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.delete.v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3105:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s
