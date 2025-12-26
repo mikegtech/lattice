@@ -5,6 +5,8 @@
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 
 -- Create enum types
 CREATE TYPE deletion_status AS ENUM ('active', 'soft_deleted', 'hard_deleted');

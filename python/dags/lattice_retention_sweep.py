@@ -4,36 +4,24 @@ Lattice Retention Sweep DAG
 Identifies emails eligible for deletion based on retention policy and publishes
 deletion requests to Kafka for the mail-deleter worker to execute.
 
-Features:
-- Configurable cutoff date (default: 365 days ago)
-- Bounded batch processing with max_emails_per_run
-- Resumable via checkpoint tracking in retention_sweep_run table
+Key design:
+- Airflow orchestrates ONLY - no direct deletion of data
+- Tuple-based cursor (received_at, id) for stable pagination
 - Idempotent: skips completed sweeps unless force=true
+- Resumable: continues from last checkpoint on rerun
 
 Usage:
-    Trigger via Airflow UI or CLI:
-    {
-        "tenant_id": "personal",
-        "cutoff_date": "2023-01-01",
-        "max_emails_per_run": 500
-    }
-
-    CLI examples:
-    # Daily sweep with default cutoff (365 days ago)
     airflow dags trigger lattice__retention_sweep
 
-    # Specific account sweep
-    airflow dags trigger lattice__retention_sweep \\
+    airflow dags trigger lattice__retention_sweep \
         --conf '{"tenant_id": "personal", "account_id": "personal-gmail"}'
 
-    # Force rerun of completed sweep
-    airflow dags trigger lattice__retention_sweep \\
-        --conf '{"tenant_id": "personal", "cutoff_date": "2023-06-01", "force": true}'
+    airflow dags trigger lattice__retention_sweep \
+        --conf '{"cutoff_date": "2023-06-01", "force": true}'
 """
 
 from datetime import datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
 from airflow import DAG
 from airflow.decorators import task
@@ -49,6 +37,14 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
     "execution_timeout": timedelta(minutes=30),
 }
+
+
+def _get_postgres_connection_string() -> str:
+    """Get Postgres connection string using PostgresConfig from lattice_mail."""
+    from lattice_mail.account_registry import PostgresConfig
+
+    config = PostgresConfig.from_env()
+    return config.connection_string
 
 
 @task
@@ -67,7 +63,6 @@ def validate_params(params: dict[str, Any]) -> dict[str, Any]:
 
     # Parse cutoff date (default: 365 days ago)
     if cutoff_date_str:
-        # Support both YYYY-MM-DD and ISO8601 formats
         try:
             if "T" in cutoff_date_str:
                 cutoff_date = datetime.fromisoformat(cutoff_date_str.replace("Z", "+00:00"))
@@ -91,9 +86,12 @@ def validate_params(params: dict[str, Any]) -> dict[str, Any]:
         "force": bool(force),
     }
 
+    # Log without PII - counts and identifiers only
     logger.info(
-        "Validated retention sweep params: tenant=%s, cutoff=%s, max=%d, force=%s",
+        "Validated params: tenant=%s, account=%s, alias=%s, cutoff=%s, max=%d, force=%s",
         tenant_id,
+        account_id or "(all)",
+        alias or "(all)",
         cutoff_date.date().isoformat(),
         max_emails,
         force,
@@ -106,20 +104,12 @@ def validate_params(params: dict[str, Any]) -> dict[str, Any]:
 def load_or_create_sweep_run(validated_params: dict[str, Any]) -> dict[str, Any]:
     """Load existing sweep run or create a new one (idempotent)."""
     import logging
-    import os
+    from uuid import uuid4
 
     import psycopg
 
     logger = logging.getLogger(__name__)
-
-    # Build connection string
-    pg_host = os.getenv("POSTGRES_HOST", "localhost")
-    pg_port = os.getenv("POSTGRES_PORT", "5432")
-    pg_db = os.getenv("POSTGRES_DB", "lattice")
-    pg_user = os.getenv("POSTGRES_USER", "lattice")
-    pg_pass = os.getenv("POSTGRES_PASSWORD", "")
-
-    conn_str = f"host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_pass}"
+    conn_str = _get_postgres_connection_string()
 
     tenant_id = validated_params["tenant_id"]
     account_id = validated_params.get("account_id")
@@ -128,29 +118,37 @@ def load_or_create_sweep_run(validated_params: dict[str, Any]) -> dict[str, Any]
     force = validated_params["force"]
 
     with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
-        # Check for existing sweep with same parameters
+        # Check for existing sweep with same parameters (NULL-safe comparison)
         cur.execute(
             """
-            SELECT id, status, emails_targeted, emails_published, last_email_id
+            SELECT id, status, emails_targeted, emails_published,
+                   last_received_at, last_email_id
             FROM retention_sweep_run
             WHERE tenant_id = %s
               AND cutoff_date = %s
-              AND (account_id = %s OR (account_id IS NULL AND %s IS NULL))
+              AND COALESCE(account_id, '') = COALESCE(%s, '')
+              AND COALESCE(alias, '') = COALESCE(%s, '')
             ORDER BY created_at DESC
             LIMIT 1
             """,
-            (tenant_id, cutoff_date, account_id, account_id),
+            (tenant_id, cutoff_date, account_id, alias),
         )
         existing = cur.fetchone()
 
         if existing:
-            sweep_id, status, targeted, published, last_email_id = existing
+            (
+                sweep_id,
+                status,
+                targeted,
+                published,
+                last_received_at,
+                last_email_id,
+            ) = existing
 
             if status == "completed" and not force:
                 logger.info(
-                    "Sweep already completed: id=%s, targeted=%d, published=%d",
+                    "Sweep already completed: id=%s, published=%d",
                     sweep_id,
-                    targeted,
                     published,
                 )
                 return {
@@ -165,17 +163,20 @@ def load_or_create_sweep_run(validated_params: dict[str, Any]) -> dict[str, Any]
 
             if status == "running":
                 logger.info(
-                    "Resuming existing sweep: id=%s, last_email_id=%s, published=%d",
+                    "Resuming sweep: id=%s, published=%d, has_cursor=%s",
                     sweep_id,
-                    last_email_id,
                     published,
+                    last_received_at is not None,
                 )
                 return {
                     "sweep_id": str(sweep_id),
                     "status": "running",
                     "is_resuming": True,
                     "skip_processing": False,
-                    "last_email_id": last_email_id,
+                    "last_received_at": (
+                        last_received_at.isoformat() if last_received_at else None
+                    ),
+                    "last_email_id": str(last_email_id) if last_email_id else None,
                     "emails_targeted": targeted,
                     "emails_published": published,
                     **validated_params,
@@ -188,7 +189,8 @@ def load_or_create_sweep_run(validated_params: dict[str, Any]) -> dict[str, Any]
         new_id = uuid4()
         cur.execute(
             """
-            INSERT INTO retention_sweep_run (id, tenant_id, account_id, alias, cutoff_date, status)
+            INSERT INTO retention_sweep_run
+                (id, tenant_id, account_id, alias, cutoff_date, status)
             VALUES (%s, %s, %s, %s, %s, 'running')
             RETURNING id
             """,
@@ -203,6 +205,7 @@ def load_or_create_sweep_run(validated_params: dict[str, Any]) -> dict[str, Any]
             "status": "running",
             "is_resuming": False,
             "skip_processing": False,
+            "last_received_at": None,
             "last_email_id": None,
             "emails_targeted": 0,
             "emails_published": 0,
@@ -212,9 +215,8 @@ def load_or_create_sweep_run(validated_params: dict[str, Any]) -> dict[str, Any]
 
 @task
 def select_eligible_emails(sweep_run: dict[str, Any]) -> dict[str, Any]:
-    """Select emails eligible for deletion based on cutoff date."""
+    """Select emails eligible for deletion using tuple-based cursor."""
     import logging
-    import os
 
     import psycopg
 
@@ -222,28 +224,22 @@ def select_eligible_emails(sweep_run: dict[str, Any]) -> dict[str, Any]:
 
     if sweep_run.get("skip_processing"):
         logger.info("Skipping email selection - sweep already completed")
-        return {**sweep_run, "eligible_emails": []}
+        return {**sweep_run, "eligible_emails": [], "batch_complete": True}
 
-    # Build connection string
-    pg_host = os.getenv("POSTGRES_HOST", "localhost")
-    pg_port = os.getenv("POSTGRES_PORT", "5432")
-    pg_db = os.getenv("POSTGRES_DB", "lattice")
-    pg_user = os.getenv("POSTGRES_USER", "lattice")
-    pg_pass = os.getenv("POSTGRES_PASSWORD", "")
-
-    conn_str = f"host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_pass}"
+    conn_str = _get_postgres_connection_string()
 
     tenant_id = sweep_run["tenant_id"]
     account_id = sweep_run.get("account_id")
     alias = sweep_run.get("alias")
     cutoff_date = datetime.fromisoformat(sweep_run["cutoff_date"])
     max_emails = sweep_run["max_emails_per_run"]
+    last_received_at = sweep_run.get("last_received_at")
     last_email_id = sweep_run.get("last_email_id")
 
     with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
-        # Build query with optional filters
+        # Build query with tuple-based cursor for stable pagination
         query = """
-            SELECT e.id, e.tenant_id, e.account_id, e.provider_message_id
+            SELECT e.id, e.tenant_id, e.account_id, e.received_at
             FROM email e
             WHERE e.tenant_id = %s
               AND e.received_at < %s
@@ -267,56 +263,67 @@ def select_eligible_emails(sweep_run: dict[str, Any]) -> dict[str, Any]:
             """
             params.append(alias)
 
-        # Resume from checkpoint if resuming
-        if last_email_id:
-            query += " AND e.id > %s"
-            params.append(last_email_id)
+        # Resume from cursor using tuple comparison (received_at, id)
+        if last_received_at and last_email_id:
+            query += " AND (e.received_at, e.id) > (%s, %s)"
+            cursor_ts = datetime.fromisoformat(last_received_at)
+            params.extend([cursor_ts, last_email_id])
 
-        # Order by ID for stable pagination and add limit
-        query += " ORDER BY e.id LIMIT %s"
+        # Order by tuple for stable pagination and add limit
+        query += " ORDER BY e.received_at, e.id LIMIT %s"
         params.append(max_emails)
 
         cur.execute(query, params)
         rows = cur.fetchall()
 
+        # Build result without PII (no provider_message_id, subject, addresses)
         eligible_emails = [
             {
                 "email_id": str(row[0]),
                 "tenant_id": row[1],
                 "account_id": row[2],
-                "provider_message_id": row[3],
+                "received_at": row[3].isoformat(),
             }
             for row in rows
         ]
 
+        selected_count = len(eligible_emails)
+
         # Update targeted count in sweep run
-        total_targeted = sweep_run.get("emails_targeted", 0) + len(eligible_emails)
+        total_targeted = sweep_run.get("emails_targeted", 0) + selected_count
         cur.execute(
             "UPDATE retention_sweep_run SET emails_targeted = %s WHERE id = %s",
             (total_targeted, sweep_run["sweep_id"]),
         )
         conn.commit()
 
+        # Determine if this batch completes the sweep
+        # Batch is complete (sweep should be marked completed) only if:
+        # - No emails found, OR
+        # - Fewer emails than max_emails_per_run (no more to process)
+        batch_complete = selected_count < max_emails
+
         logger.info(
-            "Selected %d eligible emails for deletion (cutoff=%s, tenant=%s)",
-            len(eligible_emails),
+            "Selected %d emails (cutoff=%s, batch_complete=%s)",
+            selected_count,
             cutoff_date.date().isoformat(),
-            tenant_id,
+            batch_complete,
         )
 
         return {
             **sweep_run,
             "eligible_emails": eligible_emails,
             "emails_targeted": total_targeted,
+            "batch_complete": batch_complete,
         }
 
 
 @task
 def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
-    """Publish deletion requests to Kafka."""
+    """Publish deletion requests to Kafka with checkpointing."""
     import logging
-    import os
     from datetime import datetime
+    from uuid import uuid4
 
     import psycopg
 
@@ -331,21 +338,16 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
         logger.info("No eligible emails to publish")
         return sweep_data
 
-    # Import Kafka producer
     from lattice_kafka.producer import TOPIC_MAIL_DELETE, KafkaProducer
 
-    # Build Postgres connection for checkpointing
-    pg_host = os.getenv("POSTGRES_HOST", "localhost")
-    pg_port = os.getenv("POSTGRES_PORT", "5432")
-    pg_db = os.getenv("POSTGRES_DB", "lattice")
-    pg_user = os.getenv("POSTGRES_USER", "lattice")
-    pg_pass = os.getenv("POSTGRES_PASSWORD", "")
-    conn_str = f"host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_pass}"
-
+    conn_str = _get_postgres_connection_string()
     producer = KafkaProducer()
+
     published_count = 0
-    last_email_id = None
+    last_published_received_at = None
+    last_published_email_id = None
     cutoff_date = sweep_data["cutoff_date"]
+    sweep_id = sweep_data["sweep_id"]
 
     try:
         for email in eligible_emails:
@@ -357,7 +359,6 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
                 "tenant_id": email["tenant_id"],
                 "account_id": email["account_id"],
                 "email_id": email["email_id"],
-                "provider_message_id": email["provider_message_id"],
                 "deletion_type": "hard",
                 "deletion_reason": "retention_policy",
                 "delete_vectors": True,
@@ -383,7 +384,8 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
             )
 
             published_count += 1
-            last_email_id = email["email_id"]
+            last_published_received_at = email["received_at"]
+            last_published_email_id = email["email_id"]
 
             # Checkpoint every 100 messages
             if published_count % 100 == 0:
@@ -393,18 +395,23 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
                         """
                         UPDATE retention_sweep_run
                         SET emails_published = emails_published + 100,
+                            last_received_at = %s,
                             last_email_id = %s
                         WHERE id = %s
                         """,
-                        (last_email_id, sweep_data["sweep_id"]),
+                        (
+                            datetime.fromisoformat(last_published_received_at),
+                            last_published_email_id,
+                            sweep_id,
+                        ),
                     )
                     conn.commit()
-                logger.info("Checkpoint: published %d deletion requests", published_count)
+                logger.info("Checkpoint: published %d requests", published_count)
 
         # Final flush
         producer.flush()
 
-        # Update final count
+        # Update final count and cursor
         with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
             remaining = published_count % 100
             if remaining > 0:
@@ -412,28 +419,33 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
                     """
                     UPDATE retention_sweep_run
                     SET emails_published = emails_published + %s,
+                        last_received_at = %s,
                         last_email_id = %s
                     WHERE id = %s
                     """,
-                    (remaining, last_email_id, sweep_data["sweep_id"]),
+                    (
+                        remaining,
+                        datetime.fromisoformat(last_published_received_at),
+                        last_published_email_id,
+                        sweep_id,
+                    ),
                 )
                 conn.commit()
 
-        logger.info(
-            "Published %d deletion requests to %s",
-            published_count,
-            TOPIC_MAIL_DELETE,
-        )
+        logger.info("Published %d deletion requests", published_count)
 
         return {
             **sweep_data,
             "emails_published": sweep_data.get("emails_published", 0) + published_count,
-            "last_email_id": last_email_id,
+            "last_received_at": last_published_received_at,
+            "last_email_id": last_published_email_id,
         }
 
     except Exception as e:
-        logger.error("Failed to publish deletion requests: %s", str(e))
-        # Mark sweep as failed
+        error_msg = str(e)[:500]
+        logger.error("Failed to publish deletion requests: %s", error_msg)
+
+        # Mark sweep as failed - do not advance cursor beyond last successful publish
         with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -441,7 +453,7 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
                 SET status = 'failed', last_error = %s
                 WHERE id = %s
                 """,
-                (str(e)[:500], sweep_data["sweep_id"]),
+                (error_msg, sweep_id),
             )
             conn.commit()
         raise
@@ -449,9 +461,8 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
 
 @task
 def update_sweep_status(sweep_result: dict[str, Any]) -> dict[str, Any]:
-    """Update sweep run status to completed."""
+    """Update sweep run status based on completion logic."""
     import logging
-    import os
     from datetime import datetime
 
     import psycopg
@@ -462,47 +473,62 @@ def update_sweep_status(sweep_result: dict[str, Any]) -> dict[str, Any]:
         logger.info("Sweep was already completed - no status update needed")
         return sweep_result
 
-    # Build connection string
-    pg_host = os.getenv("POSTGRES_HOST", "localhost")
-    pg_port = os.getenv("POSTGRES_PORT", "5432")
-    pg_db = os.getenv("POSTGRES_DB", "lattice")
-    pg_user = os.getenv("POSTGRES_USER", "lattice")
-    pg_pass = os.getenv("POSTGRES_PASSWORD", "")
-
-    conn_str = f"host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_pass}"
-
+    conn_str = _get_postgres_connection_string()
     sweep_id = sweep_result["sweep_id"]
     emails_targeted = sweep_result.get("emails_targeted", 0)
     emails_published = sweep_result.get("emails_published", 0)
+    batch_complete = sweep_result.get("batch_complete", False)
 
     with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE retention_sweep_run
-            SET status = 'completed',
-                completed_at = %s,
-                emails_targeted = %s,
-                emails_published = %s
-            WHERE id = %s
-            """,
-            (datetime.utcnow(), emails_targeted, emails_published, sweep_id),
-        )
-        conn.commit()
+        if batch_complete:
+            # Mark as completed - no more emails to process
+            cur.execute(
+                """
+                UPDATE retention_sweep_run
+                SET status = 'completed',
+                    completed_at = %s,
+                    emails_targeted = %s,
+                    emails_published = %s
+                WHERE id = %s
+                """,
+                (datetime.utcnow(), emails_targeted, emails_published, sweep_id),
+            )
+            final_status = "completed"
+            logger.info(
+                "Sweep completed: id=%s, targeted=%d, published=%d",
+                sweep_id,
+                emails_targeted,
+                emails_published,
+            )
+        else:
+            # Keep as running - more emails to process in next run
+            cur.execute(
+                """
+                UPDATE retention_sweep_run
+                SET emails_targeted = %s,
+                    emails_published = %s
+                WHERE id = %s
+                """,
+                (emails_targeted, emails_published, sweep_id),
+            )
+            final_status = "running"
+            logger.info(
+                "Sweep batch done (more remain): id=%s, targeted=%d, published=%d",
+                sweep_id,
+                emails_targeted,
+                emails_published,
+            )
 
-    logger.info(
-        "Retention sweep completed: sweep_id=%s, targeted=%d, published=%d",
-        sweep_id,
-        emails_targeted,
-        emails_published,
-    )
+        conn.commit()
 
     return {
         "sweep_id": sweep_id,
-        "status": "completed",
+        "status": final_status,
         "tenant_id": sweep_result["tenant_id"],
         "cutoff_date": sweep_result["cutoff_date"],
         "emails_targeted": emails_targeted,
         "emails_published": emails_published,
+        "batch_complete": batch_complete,
     }
 
 
