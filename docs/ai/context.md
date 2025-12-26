@@ -12,7 +12,7 @@ If an AI session restarts, this file defines:
 ---
 
 ## Current Phase
-**Phase 5 – Embedding (mail-embedder)**
+**Phase 6 – Vector Upsert (mail-upserter)**
 
 ---
 
@@ -63,17 +63,25 @@ If an AI session restarts, this file defines:
 - Postgres FTS populated for chunks
 - Deterministic chunk hashing enforced
 
+### Phase 5 – Embedding
+- NestJS worker `mail-embedder` implemented
+- Pipeline extended:
+  `raw → parse → chunk → embed`
+- Embedding is versioned and idempotent:
+  - embeddings keyed by (email_id, chunk_hash, embedding_version)
+- Embeddings and metadata persisted in Postgres (system-of-record)
+- Embed events published to `lattice.mail.embed.v1`
+
 ---
 
 ## Active Phase
 
-### Phase 5 – Embedding
-**Goal:** Convert chunks into embeddings in a controlled, versioned, idempotent way.
+### Phase 6 – Vector Upsert
+**Goal:** Upsert embeddings into Milvus in an idempotent, versioned manner.
 
 ---
 
 ## Core Invariants (DO NOT VIOLATE)
-
 - Airflow orchestrates; workers execute
 - Kafka topics are the system boundary
 - Postgres is the system-of-record
@@ -82,27 +90,27 @@ If an AI session restarts, this file defines:
 - No PII in logs
 - No secrets in repo
 - Local validation via Docker Compose is required before cloud deployment
+- Metric tags must be low-cardinality per `docs/telemetry-tags.md`
 
 ---
 
 ## Local Runtime Topology
-
 - `lattice-core.yml` → Postgres, Milvus, MinIO
 - `airflow.yml` → Airflow
 - `lattice-workers.yml` → Kafka workers:
   - mail-parser
   - mail-chunker
-  - (next) mail-embedder
+  - mail-embedder
+  - (next) mail-upserter
 
 ---
 
 ## Rehydration Instructions for AI Tools
-
 When starting a new AI session:
 1. Read this file
 2. Read `docs/architecture/`
 3. Read `docs/runbooks/`
 4. Read `.github/instructions/*.md`
-5. Ask what phase is active before making changes
+5. Confirm the current phase before making changes
 
 This file overrides chat history.

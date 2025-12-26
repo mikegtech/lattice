@@ -5,6 +5,7 @@
 #   - mail-parser: Parses raw RFC822 emails into structured format
 #   - mail-chunker: Chunks parsed emails for embedding
 #   - mail-embedder: Generates embeddings for chunks and stores in Postgres
+#   - mail-upserter: Upserts embedding vectors to Milvus
 
 x-common-env: &common-env
   NODE_ENV: production
@@ -152,6 +153,56 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3102:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail Upserter Worker
+  # Consumes: lattice.mail.embed.v1
+  # Produces: lattice.mail.upsert.v1
+  # ==========================================================================
+  mail-upserter:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-upserter/Dockerfile
+    container_name: lattice-mail-upserter
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-upserter"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-upserter
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: upsert
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-upserter
+      KAFKA_GROUP_ID: mail-upserter-group
+      KAFKA_TOPIC_IN: lattice.mail.embed.v1
+      KAFKA_TOPIC_OUT: lattice.mail.upsert.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.upsert.v1
+      # Milvus config
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
+      MILVUS_COLLECTION: email_chunks_v1
+      MILVUS_DIM: "384"
+      MILVUS_INDEX_TYPE: HNSW
+      MILVUS_HNSW_M: "16"
+      MILVUS_HNSW_EF_CONSTRUCTION: "256"
+      MILVUS_METRIC_TYPE: COSINE
+      MILVUS_BATCH_SIZE: "100"
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3103:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s
