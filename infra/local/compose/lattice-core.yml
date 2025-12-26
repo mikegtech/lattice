@@ -1,12 +1,11 @@
 x-common-env: &common-env
-  ENV: dev
   NODE_ENV: development
   LOG_LEVEL: debug
-  TEAM: platform
-  CLOUD: gcp
-  REGION: us-central1
-  DOMAIN: mail
-  PIPELINE: mail-indexing
+  LATTICE_TEAM: platform
+  LATTICE_CLOUD: local
+  LATTICE_REGION: local
+  LATTICE_DOMAIN: mail
+  LATTICE_PIPELINE: mail-indexing
 
 x-kafka-env: &kafka-env
   KAFKA_BROKERS: ${KAFKA_BROKERS:-pkc-619z3.us-east1.gcp.confluent.cloud:9092}

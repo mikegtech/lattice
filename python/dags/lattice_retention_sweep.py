@@ -387,7 +387,7 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
             last_published_received_at = email["received_at"]
             last_published_email_id = email["email_id"]
 
-            # Checkpoint every 100 messages
+            # Checkpoint every 100 messages with tuple cursor
             if published_count % 100 == 0:
                 producer.flush()
                 with psycopg.connect(conn_str) as conn, conn.cursor() as cur:

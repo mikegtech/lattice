@@ -4,14 +4,14 @@ Operational and developer runbooks.
 
 ## Contents
 
-- `demo-two-inboxes-airflow.md`
-  End-to-end Gmail + IMAP demo.
-
-- `test-phase-3.md`
-  Validation checklist for Airflow ingestion.
-
 - `local-development.md`
-  How to run Lattice locally.
+  How to run Lattice locally with Docker Compose.
+
+- `demo-two-inboxes.md`
+  End-to-end Gmail + IMAP demo (script-based).
+
+- `demo-two-inboxes-airflow.md`
+  End-to-end Gmail + IMAP demo (Airflow-based).
 
 - `mail-deletion.md`
   Email lifecycle deletion operations (single, account, alias, retention sweep).
