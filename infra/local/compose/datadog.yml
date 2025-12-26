@@ -19,15 +19,10 @@ services:
       DD_APM_ENABLED: "true"
       DD_APM_NON_LOCAL_TRAFFIC: "true"
 
-      # Logs Configuration - only collect from lattice containers
+      # Logs Configuration
       DD_LOGS_ENABLED: "true"
-      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
-      DD_CONTAINER_INCLUDE_LOGS: "name:lattice-.*"
-      DD_CONTAINER_EXCLUDE_LOGS: "name:lattice-datadog-agent"
-
-      # Container metrics - only from lattice containers
-      DD_CONTAINER_INCLUDE_METRICS: "name:lattice-.*"
-      DD_CONTAINER_EXCLUDE_METRICS: "name:lattice-datadog-agent"
+      # Container collect all is set to false in datadog/datadog.yaml
+      # Only containers with com.datadoghq.ad.logs labels will be collected
 
       # Process monitoring
       DD_PROCESS_AGENT_ENABLED: "true"
@@ -47,6 +42,7 @@ services:
       - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./datadog/conf.d:/etc/datadog-agent/conf.d:ro
+      - ./datadog/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
     ports:
       - "8126:8126"  # APM trace receiver
       - "8125:8125/udp"  # DogStatsD
