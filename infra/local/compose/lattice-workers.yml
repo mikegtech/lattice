@@ -4,6 +4,7 @@
 # Workers:
 #   - mail-parser: Parses raw RFC822 emails into structured format
 #   - mail-chunker: Chunks parsed emails for embedding
+#   - mail-embedder: Generates embeddings for chunks and stores in Postgres
 
 x-common-env: &common-env
   NODE_ENV: production
@@ -40,6 +41,8 @@ services:
       context: ../../..
       dockerfile: apps/workers/mail-parser/Dockerfile
     container_name: lattice-mail-parser
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-parser"}]'
     environment:
       <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
       # Service identity
@@ -78,6 +81,8 @@ services:
       context: ../../..
       dockerfile: apps/workers/mail-chunker/Dockerfile
     container_name: lattice-mail-chunker
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-chunker"}]'
     environment:
       <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
       # Service identity
@@ -102,6 +107,51 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3101:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail Embedder Worker
+  # Consumes: lattice.mail.chunk.v1
+  # Produces: lattice.mail.embed.v1
+  # ==========================================================================
+  mail-embedder:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-embedder/Dockerfile
+    container_name: lattice-mail-embedder
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-embedder"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-embedder
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: embed
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-embedder
+      KAFKA_GROUP_ID: mail-embedder-group
+      KAFKA_TOPIC_IN: lattice.mail.chunk.v1
+      KAFKA_TOPIC_OUT: lattice.mail.embed.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.embed.v1
+      # Embedding config
+      EMBEDDING_PROVIDER: local-stub
+      EMBEDDING_VERSION: v1
+      EMBEDDING_BATCH_SIZE: "10"
+      EMBEDDING_RATE_LIMIT: "100"
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3102:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s

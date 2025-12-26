@@ -1,0 +1,6 @@
+# Datadog Agent Configuration for Lattice Local Development
+
+# Disable automatic log collection from all containers
+# Only containers with Datadog labels will have logs collected
+logs_config:
+  container_collect_all: false

@@ -194,6 +194,7 @@ export interface MailChunkSummaryPayload {
 
 /**
  * Mail embed event payload
+ * Note: Vector is stored in Postgres, not in the event payload to avoid large messages
  */
 export interface MailEmbedPayload {
 	/** Gmail message ID */
@@ -212,8 +213,8 @@ export interface MailEmbedPayload {
 	embedding_model: string;
 	/** Vector dimensions */
 	embedding_dimensions: number;
-	/** The embedding vector */
-	embedding_vector: number[];
+	/** Storage location for the vector */
+	vector_storage: "postgres";
 	/** When embedding was generated */
 	embedded_at: string;
 }
