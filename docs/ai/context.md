@@ -15,7 +15,7 @@ This file overrides chat history.
 ---
 
 ## Current Phase
-**Phase 6 – Vector Upsert (mail-upserter)**
+**Stabilization – Testing & Bug Fixes**
 
 ---
 
@@ -71,4 +71,74 @@ This file overrides chat history.
 - NestJS worker `mail-embedder` implemented
 - Pipeline extended:
   `raw → parse → chunk → embed`
-- Embeddings are versi
+- Embedding is versioned and idempotent:
+  - embeddings keyed by (email_id, chunk_hash, embedding_version)
+- Embeddings and metadata persisted in Postgres (system-of-record)
+- Embed events published to `lattice.mail.embed.v1`
+
+### Phase 6 – Vector Upsert (COMPLETE)
+- NestJS worker `mail-upserter` implemented
+- Vectors upserted to Milvus (idempotent, versioned)
+- Full pipeline validated:
+  `raw → parse → chunk → embed → upsert`
+- Upsert events published to `lattice.mail.upsert.v1`
+
+### Phase 7 – Retention Sweep (COMPLETE)
+- Airflow DAG `lattice__retention_sweep` implemented
+- Identifies emails by cutoff date for deletion
+- Publishes deletion requests to Kafka (`lattice.mail.delete.v1`)
+- Resumable via `retention_sweep_run` table with tuple cursor
+
+### Phase 8 – Mail Deletion & Audit (COMPLETE)
+- NestJS worker `mail-deleter` implemented
+- Deletes from Milvus (vectors) and Postgres (records)
+- Supports: single_email, account, alias, retention_sweep deletion types
+- Audit events published to `lattice.audit.events.v1`
+- NestJS worker `audit-writer` consumes and persists audit events
+
+---
+
+## Stabilization Rules
+During stabilization phase:
+- No new features without explicit approval
+- Minimal diffs preferred
+- Update runbooks when changing runtime behavior
+- Keep CI policy checks green
+- Fix bugs and align docs before adding scope
+
+---
+
+## Core Invariants (DO NOT VIOLATE)
+- Airflow orchestrates; workers execute
+- Kafka topics are the system boundary
+- Postgres is the system-of-record
+- Workers are idempotent
+- Watermarks advance only after full success
+- No PII in logs
+- No secrets in repo
+- Local validation via Docker Compose is required before cloud deployment
+- Metric tags must be low-cardinality per `docs/telemetry-tags.md`
+
+---
+
+## Local Runtime Topology
+- `infra/local/compose/lattice-core.yml` → Postgres, Milvus, MinIO, Airflow
+- `infra/local/compose/lattice-workers.yml` → Kafka workers:
+  - mail-parser
+  - mail-chunker
+  - mail-embedder
+  - mail-upserter
+  - mail-deleter
+  - audit-writer
+
+---
+
+## Rehydration Instructions for AI Tools
+When starting a new AI session:
+1. Read this file
+2. Read `docs/architecture/`
+3. Read `docs/runbooks/`
+4. Read `.github/instructions/*.md`
+5. Confirm the current phase before making changes
+
+This file overrides chat history.
