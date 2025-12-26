@@ -13,6 +13,7 @@ import {
 	DELETION_REPOSITORY,
 	DeletionRepository,
 } from "../db/deletion.repository.js";
+import { MilvusModule } from "../milvus/milvus.module.js";
 import {
 	MILVUS_SERVICE,
 	type MilvusService,
@@ -20,6 +21,7 @@ import {
 import { MailDeleterService } from "./worker.service.js";
 
 @Module({
+	imports: [MilvusModule],
 	providers: [
 		{
 			provide: DELETION_REPOSITORY,
