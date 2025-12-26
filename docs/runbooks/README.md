@@ -16,4 +16,7 @@ Operational and developer runbooks.
 - `mail-deletion.md`
   Email lifecycle deletion operations (single, account, alias, retention sweep).
 
+- `retention-sweep.md`
+  Retention policy enforcement DAG operations and monitoring.
+
 Each runbook is executable and step-by-step.
