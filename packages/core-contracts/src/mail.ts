@@ -258,7 +258,85 @@ export type DeletionReason =
 	| "admin_action";
 
 /**
- * Mail delete event payload
+ * Deletion request types
+ */
+export type DeleteRequestType =
+	| "single_email"
+	| "account"
+	| "alias"
+	| "retention_sweep";
+
+/**
+ * Mail delete request payload (input to mail-deleter)
+ */
+export interface MailDeleteRequestPayload {
+	/** Unique deletion request ID */
+	request_id: string;
+	/** Type of deletion request */
+	request_type: DeleteRequestType;
+	/** Tenant ID */
+	tenant_id: string;
+	/** Account ID */
+	account_id: string;
+	/** Email ID (for single_email deletion) */
+	email_id?: string;
+	/** Provider message ID (for single_email deletion) */
+	provider_message_id?: string;
+	/** Alias (for alias-scoped deletion) */
+	alias?: string;
+	/** Retention policy ID (for retention_sweep) */
+	retention_policy_id?: string;
+	/** Cutoff date for retention sweep (ISO string) */
+	cutoff_date?: string;
+	/** Soft or hard delete */
+	deletion_type: "soft" | "hard";
+	/** Reason for deletion */
+	deletion_reason: DeletionReason;
+	/** Delete vectors from Milvus */
+	delete_vectors: boolean;
+	/** Delete from object storage */
+	delete_storage: boolean;
+	/** Delete from Postgres */
+	delete_postgres: boolean;
+	/** Who requested deletion */
+	requested_by?: string;
+	/** When deletion was requested */
+	requested_at: string;
+}
+
+/**
+ * Mail delete completed payload (output from mail-deleter)
+ */
+export interface MailDeleteCompletedPayload {
+	/** Deletion request ID */
+	request_id: string;
+	/** Request type */
+	request_type: DeleteRequestType;
+	/** Tenant ID */
+	tenant_id: string;
+	/** Account ID */
+	account_id: string;
+	/** Number of emails deleted */
+	emails_deleted: number;
+	/** Number of chunks deleted */
+	chunks_deleted: number;
+	/** Number of embeddings deleted */
+	embeddings_deleted: number;
+	/** Number of vectors deleted from Milvus */
+	vectors_deleted: number;
+	/** Number of storage objects deleted */
+	storage_objects_deleted: number;
+	/** When deletion started */
+	started_at: string;
+	/** When deletion completed */
+	completed_at: string;
+	/** Duration in milliseconds */
+	duration_ms: number;
+}
+
+/**
+ * Mail delete event payload (legacy - single email)
+ * @deprecated Use MailDeleteRequestPayload instead
  */
 export interface MailDeletePayload {
 	/** Gmail message ID */

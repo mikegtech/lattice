@@ -13,4 +13,7 @@ Operational and developer runbooks.
 - `local-development.md`
   How to run Lattice locally.
 
+- `mail-deletion.md`
+  Email lifecycle deletion operations (single, account, alias, retention sweep).
+
 Each runbook is executable and step-by-step.
