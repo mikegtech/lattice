@@ -19,4 +19,7 @@ Operational and developer runbooks.
 - `retention-sweep.md`
   Retention policy enforcement DAG operations and monitoring.
 
+- `phase-7-signoff.md`
+  Phase 7 verification checklist for retention sweep implementation.
+
 Each runbook is executable and step-by-step.
