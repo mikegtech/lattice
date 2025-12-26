@@ -8,7 +8,7 @@ There is intentionally no root-level docker-compose.yml.
 | File | Services |
 |------|----------|
 | `lattice-core.yml` | PostgreSQL, Milvus, MinIO, Airflow |
-| `lattice-workers.yml` | mail-parser, mail-chunker, mail-embedder, mail-upserter |
+| `lattice-workers.yml` | mail-parser, mail-chunker, mail-embedder, mail-upserter, audit-writer |
 | `datadog.yml` | Datadog Agent (logs, metrics, traces) |
 
 ## Quick Start
@@ -20,7 +20,7 @@ docker compose -f lattice-core.yml up -d
 
 ### 2. Start workers (requires core network)
 ```bash
-docker compose -f lattice-core.yml -f lattice-workers.yml up -d mail-parser mail-chunker mail-embedder mail-upserter
+docker compose -f lattice-core.yml -f lattice-workers.yml up -d mail-parser mail-chunker mail-embedder mail-upserter audit-writer
 ```
 
 ### 3. (Optional) Start Datadog
@@ -36,6 +36,7 @@ docker compose -f datadog.yml up -d
 | mail-chunker | `lattice.mail.parse.v1` | `lattice.mail.chunk.v1` | 3101 | Chunks emails for embedding |
 | mail-embedder | `lattice.mail.chunk.v1` | `lattice.mail.embed.v1` | 3102 | Generates embeddings |
 | mail-upserter | `lattice.mail.embed.v1` | `lattice.mail.upsert.v1` | 3103 | Upserts vectors to Milvus |
+| audit-writer | `lattice.audit.events.v1` | *(none - terminal)* | 3104 | Writes audit events to Postgres |
 
 ### Build workers
 ```bash
@@ -44,7 +45,7 @@ docker compose -f lattice-workers.yml build
 
 ### View logs
 ```bash
-docker compose -f lattice-workers.yml logs -f mail-parser mail-chunker mail-embedder mail-upserter
+docker compose -f lattice-workers.yml logs -f mail-parser mail-chunker mail-embedder mail-upserter audit-writer
 ```
 
 ### Health checks
@@ -53,6 +54,7 @@ curl http://localhost:3100/health  # mail-parser
 curl http://localhost:3101/health  # mail-chunker
 curl http://localhost:3102/health  # mail-embedder
 curl http://localhost:3103/health  # mail-upserter
+curl http://localhost:3104/health  # audit-writer
 ```
 
 ## Validating mail-upserter (Milvus Vector Upserts)
@@ -89,6 +91,74 @@ LIMIT 10;
 Processing the same message twice should result in only one vector per (email_id, chunk_hash, embedding_version). Check the worker logs for "skipping" messages:
 ```bash
 docker logs lattice-mail-upserter 2>&1 | grep -i "already exists"
+```
+
+## Querying Audit Events
+
+The audit-writer stores all pipeline events in the `audit_event` table for traceability.
+
+### 1. Query all events for an email
+```bash
+docker exec -it lattice-postgres psql -U lattice -d lattice -c "
+SELECT occurred_at, event_type, entity_type,
+       payload_json->>'outcome' as outcome,
+       payload_json->'actor'->>'service' as service
+FROM audit_event
+WHERE entity_id = 'your-email-uuid'
+ORDER BY occurred_at;
+"
+```
+
+### 2. Query events by account
+```bash
+docker exec -it lattice-postgres psql -U lattice -d lattice -c "
+SELECT occurred_at, event_type, entity_id,
+       payload_json->>'outcome' as outcome
+FROM audit_event
+WHERE tenant_id = 'your-tenant-id'
+  AND account_id = 'your-account-id'
+ORDER BY occurred_at DESC
+LIMIT 50;
+"
+```
+
+### 3. Query events by type (e.g., all parsing events)
+```bash
+docker exec -it lattice-postgres psql -U lattice -d lattice -c "
+SELECT occurred_at, entity_id,
+       payload_json->>'outcome' as outcome,
+       payload_json->'metrics'->>'duration_ms' as duration_ms
+FROM audit_event
+WHERE event_type = 'email.parsed'
+ORDER BY occurred_at DESC
+LIMIT 20;
+"
+```
+
+### 4. Trace an email through the pipeline
+```bash
+docker exec -it lattice-postgres psql -U lattice -d lattice -c "
+SELECT occurred_at, event_type,
+       payload_json->'actor'->>'service' as service,
+       payload_json->>'outcome' as outcome
+FROM audit_event
+WHERE entity_id = 'your-email-uuid'
+   OR payload_json->>'email_id' = 'your-email-uuid'
+ORDER BY occurred_at;
+"
+```
+
+### 5. Find failed events
+```bash
+docker exec -it lattice-postgres psql -U lattice -d lattice -c "
+SELECT occurred_at, event_type, entity_id,
+       payload_json->'actor'->>'service' as service,
+       payload_json->'details'->>'error' as error
+FROM audit_event
+WHERE payload_json->>'outcome' = 'failure'
+ORDER BY occurred_at DESC
+LIMIT 20;
+"
 ```
 
 ## Environment Variables

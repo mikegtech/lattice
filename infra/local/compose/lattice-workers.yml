@@ -6,6 +6,7 @@
 #   - mail-chunker: Chunks parsed emails for embedding
 #   - mail-embedder: Generates embeddings for chunks and stores in Postgres
 #   - mail-upserter: Upserts embedding vectors to Milvus
+#   - audit-writer: Writes audit events to Postgres (terminal consumer)
 
 x-common-env: &common-env
   NODE_ENV: production
@@ -203,6 +204,46 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3103:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Audit Writer Worker
+  # Consumes: lattice.audit.events.v1
+  # Produces: none (terminal consumer)
+  # ==========================================================================
+  audit-writer:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/audit-writer/Dockerfile
+    container_name: lattice-audit-writer
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-audit-writer"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-audit-writer
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: audit
+      LATTICE_STAGE: audit
+      # Kafka topics
+      KAFKA_CLIENT_ID: audit-writer
+      KAFKA_GROUP_ID: audit-writer-group
+      KAFKA_TOPIC_IN: lattice.audit.events.v1
+      KAFKA_TOPIC_OUT: ""
+      KAFKA_TOPIC_DLQ: lattice.dlq.audit.events.v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3104:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s
