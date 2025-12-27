@@ -3,6 +3,7 @@ import {
 	Injectable,
 	type OnApplicationShutdown,
 } from "@nestjs/common";
+import type { EventLogger } from "../telemetry/events.js";
 import type { LoggerService } from "../telemetry/logger.service.js";
 import type { TelemetryService } from "../telemetry/telemetry.service.js";
 
@@ -16,10 +17,14 @@ export class LifecycleService
 {
 	private shutdownCallbacks: ShutdownCallback[] = [];
 	private isShuttingDown = false;
+	private shutdownStartTime?: number;
+	private shutdownSignal?: string;
+	private inFlightCount = 0;
 
 	constructor(
 		private readonly logger: LoggerService,
 		private readonly telemetry: TelemetryService,
+		private readonly eventLogger: EventLogger,
 	) {
 		// Register signal handlers
 		process.on("SIGTERM", () => this.handleSignal("SIGTERM"));
@@ -30,6 +35,13 @@ export class LifecycleService
 		process.on("unhandledRejection", (reason) =>
 			this.handleUnhandledRejection(reason),
 		);
+	}
+
+	/**
+	 * Update the in-flight message count (called by KafkaService)
+	 */
+	setInFlightCount(count: number): void {
+		this.inFlightCount = count;
 	}
 
 	/**
@@ -47,16 +59,13 @@ export class LifecycleService
 	}
 
 	async beforeApplicationShutdown(signal?: string): Promise<void> {
-		this.logger.info("Application shutdown starting", { signal });
+		this.shutdownStartTime = Date.now();
+		this.shutdownSignal = signal;
+		this.eventLogger.workerShutdownInitiated(this.inFlightCount, signal);
 		this.telemetry.increment("worker.shutdown_started");
 	}
 
 	async onApplicationShutdown(signal?: string): Promise<void> {
-		this.logger.info("Executing shutdown callbacks", {
-			callback_count: this.shutdownCallbacks.length,
-			signal,
-		});
-
 		// Execute shutdown callbacks in reverse order (LIFO)
 		for (const callback of this.shutdownCallbacks.reverse()) {
 			try {
@@ -69,18 +78,21 @@ export class LifecycleService
 			}
 		}
 
+		const durationMs = this.shutdownStartTime
+			? Date.now() - this.shutdownStartTime
+			: 0;
+		const reason = this.shutdownSignal ? "signal" : "graceful";
+		this.eventLogger.workerShutdownCompleted(durationMs, reason);
 		this.telemetry.increment("worker.shutdown_completed");
-		this.logger.info("Application shutdown complete");
 	}
 
 	private handleSignal(signal: ShutdownSignal): void {
 		if (this.isShuttingDown) {
-			this.logger.warn("Received signal during shutdown, ignoring", { signal });
 			return;
 		}
 
 		this.isShuttingDown = true;
-		this.logger.info("Received shutdown signal", { signal });
+		this.shutdownSignal = signal;
 		this.telemetry.increment("worker.signal_received", 1, { signal });
 	}
 

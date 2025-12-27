@@ -1,5 +1,7 @@
-import { type DynamicModule, Global, Module } from "@nestjs/common";
+import { type DynamicModule, Global, Module, Optional } from "@nestjs/common";
 import { WORKER_CONFIG, type WorkerConfig } from "../config/config.module.js";
+import { LifecycleService } from "../lifecycle/lifecycle.service.js";
+import { EVENT_LOGGER, type EventLogger } from "../telemetry/events.js";
 import { LOGGER, type LoggerService } from "../telemetry/logger.service.js";
 import { TelemetryService } from "../telemetry/telemetry.service.js";
 import { KafkaService } from "./kafka.service.js";
@@ -25,10 +27,25 @@ export class KafkaModule {
 						config: WorkerConfig,
 						telemetry: TelemetryService,
 						logger: LoggerService,
+						eventLogger: EventLogger,
+						lifecycle?: LifecycleService,
 					) => {
-						return new KafkaService(config, options, telemetry, logger);
+						return new KafkaService(
+							config,
+							options,
+							telemetry,
+							logger,
+							eventLogger,
+							lifecycle,
+						);
 					},
-					inject: [WORKER_CONFIG, TelemetryService, LOGGER],
+					inject: [
+						WORKER_CONFIG,
+						TelemetryService,
+						LOGGER,
+						EVENT_LOGGER,
+						{ token: LifecycleService, optional: true },
+					],
 				},
 			],
 			exports: [KafkaService],

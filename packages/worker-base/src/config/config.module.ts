@@ -1,6 +1,12 @@
 import { type DynamicModule, Global, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { z } from "zod";
+import {
+	LOCAL_LOGGING_CONFIG,
+	type LogTier,
+	type LoggingConfig,
+	PRODUCTION_LOGGING_CONFIG,
+} from "../telemetry/log-tier.js";
 
 /**
  * Standard environment variable schema for all Lattice workers
@@ -43,6 +49,20 @@ const workerEnvSchema = z.object({
 	KAFKA_RETRY_BACKOFF_MS: z.string().transform(Number).default("1000"),
 	LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 	HEALTH_PORT: z.string().transform(Number).default("3000"),
+
+	// Logging tier configuration
+	LOG_SHIP_TIERS: z
+		.string()
+		.optional()
+		.transform((v) => {
+			if (!v) return undefined;
+			return v.split(",").map((t) => t.trim() as LogTier);
+		}),
+	LOG_SAMPLE_DEBUG_RATE: z
+		.string()
+		.transform(Number)
+		.refine((n) => n >= 0 && n <= 1, "Must be between 0 and 1")
+		.default("0"),
 });
 
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
@@ -84,6 +104,9 @@ export interface WorkerConfig {
 	// Server
 	logLevel: string;
 	healthPort: number;
+
+	// Logging tier configuration
+	logging: LoggingConfig;
 }
 
 export const WORKER_CONFIG = "WORKER_CONFIG";
@@ -131,6 +154,21 @@ function validateAndTransform(): WorkerConfig {
 		...(parsed.DATABASE_URL && { databaseUrl: parsed.DATABASE_URL }),
 		logLevel: parsed.LOG_LEVEL,
 		healthPort: parsed.HEALTH_PORT,
+
+		// Logging configuration with environment-based defaults
+		logging: (() => {
+			const isLocal = parsed.DD_ENV === "local" || parsed.DD_ENV === "dev";
+			const defaults = isLocal
+				? LOCAL_LOGGING_CONFIG
+				: PRODUCTION_LOGGING_CONFIG;
+
+			return {
+				level: parsed.LOG_LEVEL,
+				shipTiers: parsed.LOG_SHIP_TIERS ?? defaults.shipTiers,
+				sampleDebugRate:
+					parsed.LOG_SAMPLE_DEBUG_RATE ?? defaults.sampleDebugRate,
+			};
+		})(),
 	};
 }
 

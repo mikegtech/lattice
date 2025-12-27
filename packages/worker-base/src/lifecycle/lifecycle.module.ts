@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
-import { LOGGER } from "../telemetry/logger.service.js";
+import { EVENT_LOGGER, type EventLogger } from "../telemetry/events.js";
+import { LOGGER, type LoggerService } from "../telemetry/logger.service.js";
 import { TelemetryService } from "../telemetry/telemetry.service.js";
 import { LifecycleService } from "./lifecycle.service.js";
 
@@ -8,10 +9,14 @@ import { LifecycleService } from "./lifecycle.service.js";
 	providers: [
 		{
 			provide: LifecycleService,
-			useFactory: (logger: any, telemetry: TelemetryService) => {
-				return new LifecycleService(logger, telemetry);
+			useFactory: (
+				logger: LoggerService,
+				telemetry: TelemetryService,
+				eventLogger: EventLogger,
+			) => {
+				return new LifecycleService(logger, telemetry, eventLogger);
 			},
-			inject: [LOGGER, TelemetryService],
+			inject: [LOGGER, TelemetryService, EVENT_LOGGER],
 		},
 	],
 	exports: [LifecycleService],

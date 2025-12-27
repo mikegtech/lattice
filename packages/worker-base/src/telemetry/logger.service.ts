@@ -4,6 +4,8 @@ import {
 } from "@nestjs/common";
 import pino, { type Logger as PinoLogger } from "pino";
 import type { WorkerConfig } from "../config/config.module.js";
+import { EventLogger } from "./events.js";
+import { LogTier, shouldForwardLog } from "./log-tier.js";
 
 export const LOGGER = "LOGGER";
 
@@ -75,12 +77,21 @@ export interface LogContext {
 	[key: string]: unknown;
 }
 
+/**
+ * Extended log context with tier information
+ */
+export interface TieredLogContext extends LogContext {
+	tier?: LogTier;
+}
+
 @Injectable()
 export class LoggerService implements NestLoggerService {
 	private pino: PinoLogger;
 	private baseTags: Record<string, string>;
+	private config: WorkerConfig;
 
 	constructor(config: WorkerConfig) {
+		this.config = config;
 		this.baseTags = {
 			env: config.env,
 			service: config.service,
@@ -121,18 +132,41 @@ export class LoggerService implements NestLoggerService {
 		this.pino = pino(options);
 	}
 
-	private formatContext(context?: LogContext): Record<string, unknown> {
+	private formatContext(
+		context?: TieredLogContext,
+		defaultTier: LogTier = LogTier.OPERATIONAL,
+	): Record<string, unknown> {
 		const base = { ...this.baseTags };
 
 		if (!context) {
-			return base;
+			// Default tier for logs without context
+			const { forward } = shouldForwardLog(defaultTier, this.config.logging);
+			return {
+				...base,
+				tier: defaultTier,
+				"dd.forward": forward,
+			};
 		}
 
-		const redacted = redactObject(context as Record<string, unknown>);
+		const tier = context.tier ?? defaultTier;
+		const { forward, sampled } = shouldForwardLog(
+			tier,
+			this.config.logging,
+			context.trace_id,
+		);
+
+		// Destructure tier out before redacting, then spread the rest
+		const { tier: _tier, ...contextWithoutTier } = context;
+		const redacted = redactObject(
+			contextWithoutTier as Record<string, unknown>,
+		);
 
 		return {
 			...base,
 			...redacted,
+			tier,
+			"dd.forward": forward,
+			...(sampled !== undefined && { "dd.sampled": sampled }),
 			// Datadog log-trace correlation
 			dd: {
 				trace_id: context.trace_id,
@@ -168,7 +202,7 @@ export class LoggerService implements NestLoggerService {
 		if (typeof context === "string") {
 			this.pino.debug({ ...this.baseTags, nestContext: context }, message);
 		} else {
-			this.pino.debug(this.formatContext(context), message);
+			this.pino.debug(this.formatContext(context, LogTier.DEBUG), message);
 		}
 	}
 
@@ -194,5 +228,89 @@ export class LoggerService implements NestLoggerService {
 	 */
 	info(message: string, context?: LogContext): void {
 		this.pino.info(this.formatContext(context), message);
+	}
+
+	// ==========================================================================
+	// Tier-aware logging methods
+	// ==========================================================================
+
+	/**
+	 * Log a CRITICAL tier message - always shipped to Datadog
+	 * Use for: uncaught exceptions, DLQ events, data corruption
+	 */
+	critical(message: string, context?: LogContext): void {
+		this.pino.error(
+			this.formatContext(
+				{ ...context, tier: LogTier.CRITICAL },
+				LogTier.CRITICAL,
+			),
+			message,
+		);
+	}
+
+	/**
+	 * Log an OPERATIONAL tier message - always shipped to Datadog
+	 * Use for: events, errors, significant state changes
+	 */
+	operational(message: string, context?: LogContext): void {
+		this.pino.info(
+			this.formatContext(
+				{ ...context, tier: LogTier.OPERATIONAL },
+				LogTier.OPERATIONAL,
+			),
+			message,
+		);
+	}
+
+	/**
+	 * Log a LIFECYCLE tier message - shipped on state changes only
+	 * Use for: startup, shutdown, connection changes
+	 */
+	lifecycle(message: string, context?: LogContext): void {
+		this.pino.info(
+			this.formatContext(
+				{ ...context, tier: LogTier.LIFECYCLE },
+				LogTier.LIFECYCLE,
+			),
+			message,
+		);
+	}
+
+	/**
+	 * Log a DEBUG tier message - never shipped to Datadog unless sampled
+	 * Use for: local debugging, verbose tracing
+	 */
+	debugTiered(message: string, context?: LogContext): void {
+		this.pino.debug(
+			this.formatContext({ ...context, tier: LogTier.DEBUG }, LogTier.DEBUG),
+			message,
+		);
+	}
+
+	/**
+	 * Log with explicit tier
+	 */
+	tiered(tier: LogTier, message: string, context?: LogContext): void {
+		const formattedContext = this.formatContext({ ...context, tier }, tier);
+
+		switch (tier) {
+			case LogTier.CRITICAL:
+				this.pino.error(formattedContext, message);
+				break;
+			case LogTier.OPERATIONAL:
+			case LogTier.LIFECYCLE:
+				this.pino.info(formattedContext, message);
+				break;
+			case LogTier.DEBUG:
+				this.pino.debug(formattedContext, message);
+				break;
+		}
+	}
+
+	/**
+	 * Create an EventLogger for structured Datadog events
+	 */
+	createEventLogger(): EventLogger {
+		return new EventLogger(this, this.config);
 	}
 }
