@@ -477,5 +477,5 @@ resource "datadog_dashboard" "lattice_workers" {
     default = "*"
   }
 
-  tags = ["team:platform", "env:production"]
+  tags = []
 }
