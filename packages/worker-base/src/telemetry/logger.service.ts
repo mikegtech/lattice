@@ -103,7 +103,9 @@ export class LoggerService implements NestLoggerService {
 			stage: config.stage,
 		};
 
-		const isPretty = config.env === "dev" || config.env === "local";
+		// Use JSON format by default for Datadog, pretty only if explicitly requested
+		const logFormat = process.env["LOG_FORMAT"] ?? "json";
+		const isPretty = logFormat === "pretty";
 
 		const options: pino.LoggerOptions = {
 			level: config.logLevel,
