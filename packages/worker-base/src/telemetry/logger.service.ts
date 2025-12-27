@@ -103,11 +103,8 @@ export class LoggerService implements NestLoggerService {
 			stage: config.stage,
 		};
 
-		// Use JSON format by default for Datadog, pretty only if explicitly requested
-		const logFormat = process.env["LOG_FORMAT"] ?? "json";
-		const isPretty = logFormat === "pretty";
-
-		const options: pino.LoggerOptions = {
+		// Always use JSON format for Datadog compatibility
+		this.pino = pino({
 			level: config.logLevel,
 			base: {
 				env: config.env,
@@ -118,20 +115,7 @@ export class LoggerService implements NestLoggerService {
 				level: (label: string) => ({ level: label }),
 			},
 			timestamp: pino.stdTimeFunctions.isoTime,
-		};
-
-		if (isPretty) {
-			options.transport = {
-				target: "pino-pretty",
-				options: {
-					colorize: true,
-					translateTime: "SYS:standard",
-					ignore: "pid,hostname",
-				},
-			};
-		}
-
-		this.pino = pino(options);
+		});
 	}
 
 	private formatContext(
