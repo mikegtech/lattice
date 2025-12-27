@@ -63,22 +63,6 @@ resource "datadog_dashboard" "lattice_workers" {
           autoscale  = true
           precision  = 0
           text_align = "center"
-
-          conditional_format {
-            comparator = ">"
-            value      = 100
-            palette    = "white_on_red"
-          }
-          conditional_format {
-            comparator = ">"
-            value      = 10
-            palette    = "white_on_yellow"
-          }
-          conditional_format {
-            comparator = "<="
-            value      = 10
-            palette    = "white_on_green"
-          }
         }
       }
 
@@ -103,17 +87,6 @@ resource "datadog_dashboard" "lattice_workers" {
           autoscale  = true
           precision  = 0
           text_align = "center"
-
-          conditional_format {
-            comparator = ">"
-            value      = 0
-            palette    = "white_on_red"
-          }
-          conditional_format {
-            comparator = "<="
-            value      = 0
-            palette    = "white_on_green"
-          }
         }
       }
 
@@ -467,7 +440,7 @@ resource "datadog_dashboard" "lattice_workers" {
           title_size   = "16"
           title_align  = "left"
           indexes      = ["*"]
-          query        = "service:(${local.services_query}) (ETIMEDOUT OR ECONNREFUSED OR *connection* *error*)"
+          query        = "service:(${local.services_query}) (ETIMEDOUT OR ECONNREFUSED OR connection error)"
           columns      = ["service", "message"]
           show_date_column    = true
           show_message_column = true
