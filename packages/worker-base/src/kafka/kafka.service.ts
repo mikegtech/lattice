@@ -224,29 +224,31 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 			const result = await this.processWithRetries(kafkaMessage, handler);
 			const duration = Date.now() - startTime;
 
+			// Extract emailId from payload if available
+			const emailId = this.extractEmailId(envelope.payload);
+
 			switch (result.status) {
 				case "success":
 					this.telemetry.increment("messages.success");
 					this.telemetry.timing("messages.duration_ms", duration);
-					this.logger.info("Message processed", {
-						...logContext,
-						duration_ms: duration,
-						message_id: envelope.message_id,
-					} as import("../telemetry/logger.service.js").LogContext);
+					this.eventLogger.messageProcessed(envelope.message_id, duration, {
+						emailId,
+						outputTopic: this.config.kafka.topicOut,
+					});
 					break;
 
 				case "skip":
 					this.telemetry.increment("messages.skipped");
-					this.logger.info("Message skipped", {
-						...logContext,
-						reason: result.reason,
-						message_id: envelope.message_id,
-					} as import("../telemetry/logger.service.js").LogContext);
+					this.eventLogger.messageSkipped(
+						envelope.message_id,
+						result.reason,
+						emailId,
+					);
 					break;
 
 				case "dlq":
 					this.telemetry.increment("messages.dlq");
-					await this.sendToDLQ(envelope, result.error, logContext);
+					await this.sendToDLQ(envelope, result.error, logContext, emailId);
 					break;
 			}
 		} catch (error) {
@@ -268,6 +270,8 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		let lastError: Error | undefined;
 		let retryCount = 0;
 		const maxRetries = this.config.kafka.maxRetries;
+		const messageId = message.envelope.message_id;
+		const emailId = this.extractEmailId(message.envelope.payload);
 
 		while (retryCount <= maxRetries) {
 			try {
@@ -285,12 +289,16 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 					const delay =
 						result.delay ??
 						this.config.kafka.retryBackoffMs * Math.pow(2, retryCount);
-					this.logger.warn("Retrying message", {
-						retry_count: retryCount + 1,
-						max_retries: maxRetries,
-						delay_ms: delay,
-						reason: result.reason,
-					});
+
+					// Emit retry event
+					this.eventLogger.messageRetry(
+						messageId,
+						retryCount + 1,
+						maxRetries,
+						result.reason,
+						delay,
+						emailId,
+					);
 
 					await this.sleep(delay);
 					retryCount++;
@@ -304,12 +312,17 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				if (retryCount < maxRetries && this.isRetryableError(lastError)) {
 					const delay =
 						this.config.kafka.retryBackoffMs * Math.pow(2, retryCount);
-					this.logger.warn("Retrying after error", {
-						retry_count: retryCount + 1,
-						max_retries: maxRetries,
-						delay_ms: delay,
-						error_message: lastError.message,
-					});
+
+					// Emit retry event for error-based retry
+					this.eventLogger.messageRetry(
+						messageId,
+						retryCount + 1,
+						maxRetries,
+						lastError.message,
+						delay,
+						emailId,
+					);
+
 					await this.sleep(delay);
 					retryCount++;
 					continue;
@@ -403,7 +416,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		envelope: Envelope,
 		error: Error,
 		logContext: Record<string, unknown>,
+		emailId?: string,
 	): Promise<void> {
+		const errorCode = "PROCESSING_FAILED";
+
 		try {
 			const dlqPayload = {
 				dlq_id: uuidv4(),
@@ -413,7 +429,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				error_classification: this.isRetryableError(error)
 					? "retryable"
 					: "non_retryable",
-				error_code: "PROCESSING_FAILED",
+				error_code: errorCode,
 				error_message: error.message,
 				error_stack: error.stack,
 				retry_count: this.config.kafka.maxRetries,
@@ -446,11 +462,14 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				],
 			});
 
-			this.logger.warn("Message sent to DLQ", {
-				...logContext,
-				dlq_id: dlqPayload.dlq_id,
-				error_message: error.message,
-			});
+			// Emit DLQ event
+			this.eventLogger.messageDLQ(
+				envelope.message_id,
+				"Processing failed after max retries",
+				errorCode,
+				error.message,
+				emailId,
+			);
 		} catch (dlqError) {
 			this.logger.error(
 				"Failed to send to DLQ",
@@ -465,6 +484,9 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		error: Error,
 		logContext: Record<string, unknown>,
 	): Promise<void> {
+		const dlqId = uuidv4();
+		const errorCode = "PARSE_ERROR";
+
 		// For malformed messages, send raw to DLQ
 		try {
 			await this.producer.send({
@@ -472,7 +494,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				messages: [
 					{
 						value: JSON.stringify({
-							dlq_id: uuidv4(),
+							dlq_id: dlqId,
 							original_topic: this.config.kafka.topicIn,
 							original_message: {
 								key: message.key?.toString(),
@@ -480,7 +502,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 							},
 							failure_stage: this.config.stage,
 							error_classification: "poison",
-							error_code: "PARSE_ERROR",
+							error_code: errorCode,
 							error_message: error.message,
 							processing_service: this.config.service,
 							dlq_at: new Date().toISOString(),
@@ -489,7 +511,13 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				],
 			});
 
-			this.logger.warn("Raw message sent to DLQ", logContext);
+			// Emit DLQ event for poison message (no messageId available)
+			this.eventLogger.messageDLQ(
+				dlqId, // Use dlqId as messageId since original is unparseable
+				"Malformed message",
+				errorCode,
+				error.message,
+			);
 		} catch (dlqError) {
 			this.logger.error(
 				"Failed to send raw to DLQ",
@@ -518,6 +546,33 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 			message.includes("timeout") ||
 			message.includes("broker")
 		);
+	}
+
+	/**
+	 * Extract email_id from payload if available
+	 * Handles various payload structures across different stages
+	 */
+	private extractEmailId(payload: unknown): string | undefined {
+		if (!payload || typeof payload !== "object") {
+			return undefined;
+		}
+
+		const p = payload as Record<string, unknown>;
+
+		// Direct email_id field (common in parsed/chunk/embed stages)
+		if (typeof p["email_id"] === "string") {
+			return p["email_id"];
+		}
+
+		// Nested in email object (raw stage)
+		if (p["email"] && typeof p["email"] === "object") {
+			const email = p["email"] as Record<string, unknown>;
+			if (typeof email["email_id"] === "string") {
+				return email["email_id"];
+			}
+		}
+
+		return undefined;
 	}
 
 	private sleep(ms: number): Promise<void> {

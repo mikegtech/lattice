@@ -1,0 +1,28 @@
+# =============================================================================
+# Datadog Terraform Variables Example
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in the values
+# DO NOT commit terraform.tfvars to git (it's in .gitignore)
+# =============================================================================
+
+# Required - Get from Datadog Organization Settings
+# These should be set via environment variables in CI/CD, not in this file
+# datadog_api_key = ""
+# datadog_app_key = ""
+
+# Datadog API URL (use .eu for EU region)
+datadog_api_url = "https://api.datadoghq.com"
+
+# Environment name for tagging
+environment = "production"
+
+# Team name for tagging
+team = "platform"
+
+# Slack channel for Datadog notifications (must match Datadog Slack integration)
+# The channel name without the # prefix in Datadog notation
+slack_channel = "#lattice-alerts"
+
+# PagerDuty service name for critical alerts (leave empty to skip PD)
+# Must match a service configured in Datadog PagerDuty integration
+pagerduty_service = ""
