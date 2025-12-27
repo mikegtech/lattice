@@ -1,5 +1,6 @@
 """Provider-neutral raw mail event builder for lattice.mail.raw.v1."""
 
+import base64
 import hashlib
 import uuid
 from dataclasses import dataclass, field
@@ -49,14 +50,14 @@ class RawMailEvent:
         payload: dict[str, Any] = {
             "provider_message_id": self.provider_message_id,
             "email_id": self.email_id,
-            "received_at": self.received_at.isoformat(),
+            "internal_date": self.received_at.isoformat(),  # TS contract field name
             "raw_object_uri": self.raw_object_uri,
             "raw_format": self.raw_format,
             "fetched_at": self.fetched_at.isoformat(),
         }
 
         if self.provider_thread_id:
-            payload["provider_thread_id"] = self.provider_thread_id
+            payload["thread_id"] = self.provider_thread_id  # TS contract field name
 
         if self.raw_payload:
             payload["raw_payload"] = self.raw_payload
@@ -210,6 +211,9 @@ def build_raw_event(
         "gmail_raw" if provider == "gmail" else "rfc822"
     )
 
+    # Encode raw bytes as base64url for the parser
+    raw_payload_b64 = base64.urlsafe_b64encode(raw_bytes).decode("ascii")
+
     # Build event
     event = RawMailEvent(
         provider_message_id=provider_message_id,
@@ -219,6 +223,7 @@ def build_raw_event(
         raw_format=raw_format,
         fetched_at=fetched_at,
         provider_thread_id=provider_thread_id,
+        raw_payload=raw_payload_b64,
         size_bytes=len(raw_bytes),
         content_hash=content_hash,
         attachments_manifest=attachments_manifest or [],

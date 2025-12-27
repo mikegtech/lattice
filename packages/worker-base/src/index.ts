@@ -14,6 +14,35 @@ export type { KafkaModuleOptions } from "./kafka/kafka.module.js";
 export { TelemetryModule } from "./telemetry/telemetry.module.js";
 export { TelemetryService } from "./telemetry/telemetry.service.js";
 export { LoggerService, LOGGER } from "./telemetry/logger.service.js";
+export type {
+	LogContext,
+	TieredLogContext,
+} from "./telemetry/logger.service.js";
+export { EventLogger, EVENT_LOGGER } from "./telemetry/events.js";
+export {
+	LogTier,
+	type LoggingConfig,
+	shouldForwardLog,
+	PRODUCTION_LOGGING_CONFIG,
+	LOCAL_LOGGING_CONFIG,
+} from "./telemetry/log-tier.js";
+export type {
+	LatticeEvent,
+	ServiceTags,
+	BaseEvent,
+	WorkerLifecycleEvent,
+	WorkerStartingEvent,
+	WorkerStartedEvent,
+	WorkerShutdownInitiatedEvent,
+	WorkerShutdownCompletedEvent,
+	MessageProcessingEvent,
+	KafkaConnectionEvent,
+	KafkaConnectedEvent,
+	KafkaErrorEvent,
+	DatabaseEvent,
+	HealthChangedEvent,
+	EventName,
+} from "./telemetry/events.types.js";
 
 // Health module
 export { HealthModule } from "./health/health.module.js";

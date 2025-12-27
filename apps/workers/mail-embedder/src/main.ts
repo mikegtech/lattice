@@ -1,5 +1,10 @@
 import "reflect-metadata";
-import { LOGGER, type LoggerService } from "@lattice/worker-base";
+import {
+	EVENT_LOGGER,
+	type EventLogger,
+	LOGGER,
+	type LoggerService,
+} from "@lattice/worker-base";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
 
@@ -8,15 +13,15 @@ async function bootstrap() {
 		bufferLogs: true,
 	});
 
-	// Use custom logger
 	const logger = app.get<LoggerService>(LOGGER);
+	const eventLogger = app.get<EventLogger>(EVENT_LOGGER);
 	app.useLogger(logger);
 
-	// Start HTTP server for health checks
 	const port = process.env["HEALTH_PORT"] ?? 3002;
 	await app.listen(port);
 
-	logger.log(`Mail Embedder worker started, health endpoint on port ${port}`);
+	// Emit single structured startup event
+	eventLogger.workerStarted();
 }
 
 bootstrap().catch((err) => {

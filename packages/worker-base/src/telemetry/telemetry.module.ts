@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 import { WORKER_CONFIG, type WorkerConfig } from "../config/config.module.js";
+import { EVENT_LOGGER, EventLogger } from "./events.js";
 import { LOGGER, LoggerService } from "./logger.service.js";
 import { TelemetryService } from "./telemetry.service.js";
 
@@ -22,7 +23,14 @@ import { TelemetryService } from "./telemetry.service.js";
 			},
 			inject: [WORKER_CONFIG],
 		},
+		{
+			provide: EVENT_LOGGER,
+			useFactory: (logger: LoggerService, config: WorkerConfig) => {
+				return new EventLogger(logger, config);
+			},
+			inject: [LOGGER, WORKER_CONFIG],
+		},
 	],
-	exports: [TelemetryService, LOGGER],
+	exports: [TelemetryService, LOGGER, EVENT_LOGGER],
 })
 export class TelemetryModule {}

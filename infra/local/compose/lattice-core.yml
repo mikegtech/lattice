@@ -156,8 +156,11 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-your-secret-key-here}
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      # Python path for Lattice libs
+      PYTHONPATH: /opt/airflow/libs/lattice_mail/src:/opt/airflow/libs/lattice_kafka/src:/opt/airflow/libs/lattice_common/src:/opt/airflow/libs/lattice_storage/src
     volumes:
       - ../../../python/dags:/opt/airflow/dags:ro
+      - ../../../python/libs:/opt/airflow/libs:ro
       - airflow_logs:/opt/airflow/logs
     depends_on:
       airflow-init:
@@ -181,8 +184,34 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-your-secret-key-here}
+      # Python path for Lattice libs
+      PYTHONPATH: /opt/airflow/libs/lattice_mail/src:/opt/airflow/libs/lattice_kafka/src:/opt/airflow/libs/lattice_common/src:/opt/airflow/libs/lattice_storage/src
+      # Postgres config for DAG tasks
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: lattice
+      POSTGRES_USER: lattice
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lattice_dev_password}
+      # Kafka config for DAG tasks
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-pkc-619z3.us-east1.gcp.confluent.cloud:9092}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BROKERS:-pkc-619z3.us-east1.gcp.confluent.cloud:9092}
+      KAFKA_SSL: "true"
+      KAFKA_SASL_MECHANISM: PLAIN
+      KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-CHKLV6WOMMWU4C2C}
+      KAFKA_SASL_PASSWORD: "${KAFKA_SASL_PASSWORD:-cfltpBOwy5r+NAyZOkWntNr7rjATFweaDJ3Vy/w4Jzb3lbZtpx9E8x/UFbhf0MXw}"
+      # MinIO config for DAG tasks
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: lattice-raw
+      # Gmail config for DAG tasks
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN:-}
+      GMAIL_USER_EMAIL: ${GMAIL_USER_EMAIL:-me}
     volumes:
       - ../../../python/dags:/opt/airflow/dags:ro
+      - ../../../python/libs:/opt/airflow/libs:ro
       - airflow_logs:/opt/airflow/logs
     depends_on:
       airflow-init:

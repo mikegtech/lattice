@@ -16,6 +16,8 @@ import {
 } from "kafkajs";
 import { v4 as uuidv4 } from "uuid";
 import type { WorkerConfig } from "../config/config.module.js";
+import type { LifecycleService } from "../lifecycle/lifecycle.service.js";
+import type { EventLogger } from "../telemetry/events.js";
 import type { LoggerService } from "../telemetry/logger.service.js";
 import type { TelemetryService } from "../telemetry/telemetry.service.js";
 
@@ -56,6 +58,8 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		private readonly options: { expectedSchemaVersion?: string },
 		private readonly telemetry: TelemetryService,
 		private readonly logger: LoggerService,
+		private readonly eventLogger: EventLogger,
+		private readonly lifecycle?: LifecycleService,
 	) {
 		if (options.expectedSchemaVersion) {
 			this.expectedSchemaVersion = options.expectedSchemaVersion;
@@ -125,31 +129,18 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		});
 
 		this.isConnected = true;
-		this.logger.info("Kafka connected", {
-			topic_in: this.config.kafka.topicIn,
-			group_id: this.config.kafka.groupId,
-		});
+		this.eventLogger.kafkaConnected();
 	}
 
 	async disconnect(): Promise<void> {
 		if (!this.isConnected) return;
 
 		this.isShuttingDown = true;
-		this.logger.info("Initiating graceful shutdown");
 
 		// Wait for in-flight messages to complete (max 30s)
 		const deadline = Date.now() + 30000;
 		while (this.inFlightCount > 0 && Date.now() < deadline) {
-			this.logger.info("Waiting for in-flight messages", {
-				in_flight: this.inFlightCount,
-			});
 			await this.sleep(1000);
-		}
-
-		if (this.inFlightCount > 0) {
-			this.logger.warn("Forcing shutdown with in-flight messages", {
-				in_flight: this.inFlightCount,
-			});
 		}
 
 		await this.consumer.disconnect();
@@ -157,7 +148,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		this.isConnected = false;
 		this.isRunning = false;
 
-		this.logger.info("Kafka disconnected");
+		this.eventLogger.kafkaDisconnected(
+			this.config.kafka.brokers.join(","),
+			this.inFlightCount > 0 ? "forced" : "graceful",
+		);
 	}
 
 	/**
@@ -168,21 +162,17 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 			throw new Error("Consumer already running");
 		}
 		this.isRunning = true;
-
-		this.logger.info("Starting message consumption");
 		this.telemetry.increment("worker.started");
 
 		await this.consumer.run({
 			eachMessage: async (payload: EachMessagePayload) => {
-				if (this.isShuttingDown) {
-					this.logger.warn("Received message during shutdown, will process");
-				}
-
 				this.inFlightCount++;
+				this.lifecycle?.setInFlightCount(this.inFlightCount);
 				try {
 					await this.handleMessage(payload, handler);
 				} finally {
 					this.inFlightCount--;
+					this.lifecycle?.setInFlightCount(this.inFlightCount);
 				}
 			},
 		});

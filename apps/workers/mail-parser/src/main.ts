@@ -1,5 +1,10 @@
 import "reflect-metadata";
-import { LOGGER, type LoggerService } from "@lattice/worker-base";
+import {
+	EVENT_LOGGER,
+	type EventLogger,
+	LOGGER,
+	type LoggerService,
+} from "@lattice/worker-base";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
 
@@ -8,15 +13,15 @@ async function bootstrap() {
 		bufferLogs: true,
 	});
 
-	// Use our custom logger
 	const logger = app.get<LoggerService>(LOGGER);
+	const eventLogger = app.get<EventLogger>(EVENT_LOGGER);
 	app.useLogger(logger);
 
-	// Get health port from config
 	const port = process.env["HEALTH_PORT"] ?? 3000;
-
 	await app.listen(port);
-	logger.info(`Health endpoints available on port ${port}`);
+
+	// Emit single structured startup event
+	eventLogger.workerStarted();
 }
 
 bootstrap().catch((error) => {
