@@ -13,7 +13,7 @@ variable "datadog_app_key" {
 variable "datadog_api_url" {
   description = "Datadog API URL (use https://api.datadoghq.eu for EU)"
   type        = string
-  default     = "https://api.datadoghq.com"
+  default     = "https://api.us5.datadoghq.com"
 }
 
 variable "environment" {
