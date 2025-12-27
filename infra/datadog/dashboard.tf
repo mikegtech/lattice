@@ -1,5 +1,5 @@
 # =============================================================================
-# Lattice Workers Dashboard
+# Lattice Workers Dashboard (Datadog Provider v3.83 compatible)
 # =============================================================================
 
 resource "datadog_dashboard" "lattice_workers" {
@@ -29,7 +29,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "@event:lattice.worker.started service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "cardinality"
                 facet       = "service"
               }
@@ -39,7 +39,6 @@ resource "datadog_dashboard" "lattice_workers" {
           autoscale   = true
           precision   = 0
           text_align  = "center"
-          custom_unit = ""
         }
       }
 
@@ -55,7 +54,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "level:error service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
             }
@@ -65,17 +64,17 @@ resource "datadog_dashboard" "lattice_workers" {
           precision  = 0
           text_align = "center"
 
-          conditional_formats {
+          conditional_format {
             comparator = ">"
             value      = 100
             palette    = "white_on_red"
           }
-          conditional_formats {
+          conditional_format {
             comparator = ">"
             value      = 10
             palette    = "white_on_yellow"
           }
-          conditional_formats {
+          conditional_format {
             comparator = "<="
             value      = 10
             palette    = "white_on_green"
@@ -95,7 +94,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "@event:lattice.message.dlq service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
             }
@@ -105,13 +104,13 @@ resource "datadog_dashboard" "lattice_workers" {
           precision  = 0
           text_align = "center"
 
-          conditional_formats {
+          conditional_format {
             comparator = ">"
             value      = 0
             palette    = "white_on_red"
           }
-          conditional_formats {
-            comparator = "=="
+          conditional_format {
+            comparator = "<="
             value      = 0
             palette    = "white_on_green"
           }
@@ -130,7 +129,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "@event:lattice.message.processed service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
             }
@@ -157,7 +156,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "level:error service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
 
@@ -213,7 +212,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "@event:lattice.message.processed service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
 
@@ -257,7 +256,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "@event:lattice.message.processed @duration_ms:* service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "avg"
                 facet       = "@duration_ms"
               }
@@ -312,7 +311,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "level:error service:(${local.services_query}) @error_code:*"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
 
@@ -360,7 +359,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "level:error service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
 
@@ -403,7 +402,7 @@ resource "datadog_dashboard" "lattice_workers" {
               index        = "*"
               search_query = "@event:(lattice.kafka.connected OR lattice.kafka.error) service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
 
@@ -437,9 +436,9 @@ resource "datadog_dashboard" "lattice_workers" {
           request {
             log_query {
               index        = "*"
-              search_query = "@event:(lattice.worker.started OR lattice.worker.shutdown) service:(${local.services_query})"
+              search_query = "@event:(lattice.worker.started OR lattice.worker.shutdown*) service:(${local.services_query})"
 
-              compute {
+              compute_query {
                 aggregation = "count"
               }
 
