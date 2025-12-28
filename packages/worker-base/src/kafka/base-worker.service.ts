@@ -7,14 +7,9 @@ import type {
 	KafkaService,
 	ProcessResult,
 } from "./kafka.service.js";
+import type { WorkerContext } from "./types.js";
 
-export interface WorkerContext {
-	traceId?: string;
-	spanId?: string;
-	topic: string;
-	partition: number;
-	offset: string;
-}
+export type { WorkerContext } from "./types.js";
 
 export type WorkerHandler<TIn, TOut = void> = (
 	payload: TIn,

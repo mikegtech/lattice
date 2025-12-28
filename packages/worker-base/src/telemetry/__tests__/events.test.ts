@@ -198,6 +198,57 @@ describe("EventLogger", () => {
 				email_id: "email-456",
 			});
 		});
+
+		it("should emit messageDLQ event with Kafka context", () => {
+			eventLogger.messageDLQ(
+				"msg-123",
+				"processing failed",
+				"PROCESSING_FAILED",
+				"Database timeout",
+				"email-456",
+				{
+					topic: "lattice.mail.raw.v1",
+					partition: 2,
+					offset: "12345",
+					traceId: "trace-abc",
+					spanId: "span-def",
+				},
+			);
+
+			const [message, context] = (mockLogger.info as ReturnType<typeof vi.fn>)
+				.mock.calls[0];
+
+			expect(message).toBe("lattice.message.dlq");
+			expect(context).toMatchObject({
+				event: "lattice.message.dlq",
+				"dd.forward": true,
+				message_id: "msg-123",
+				reason: "processing failed",
+				error_code: "PROCESSING_FAILED",
+				error_message: "Database timeout",
+				dlq_topic: "lattice.dlq.mail.parse.v1",
+				email_id: "email-456",
+				input_topic: "lattice.mail.raw.v1",
+				kafka_partition: 2,
+				kafka_offset: "12345",
+			});
+		});
+
+		it("should emit messageDLQ event without context fields when not provided", () => {
+			eventLogger.messageDLQ(
+				"msg-123",
+				"parsing failed",
+				"PARSE_ERROR",
+				"Invalid MIME structure",
+			);
+
+			const [, context] = (mockLogger.info as ReturnType<typeof vi.fn>).mock
+				.calls[0];
+
+			expect(context.input_topic).toBeUndefined();
+			expect(context.kafka_partition).toBeUndefined();
+			expect(context.kafka_offset).toBeUndefined();
+		});
 	});
 
 	describe("Kafka Events", () => {

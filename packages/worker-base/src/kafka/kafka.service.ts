@@ -20,6 +20,7 @@ import type { LifecycleService } from "../lifecycle/lifecycle.service.js";
 import type { EventLogger } from "../telemetry/events.js";
 import type { LoggerService } from "../telemetry/logger.service.js";
 import type { TelemetryService } from "../telemetry/telemetry.service.js";
+import type { WorkerContext } from "./types.js";
 
 export interface KafkaMessage<T = unknown> {
 	envelope: Envelope<T>;
@@ -198,6 +199,15 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		};
 		if (traceId) logContext["trace_id"] = traceId;
 
+		// Build worker context for DLQ events
+		const workerContext: WorkerContext = {
+			topic,
+			partition,
+			offset: message.offset,
+		};
+		if (traceId) workerContext.traceId = traceId;
+		if (spanId) workerContext.spanId = spanId;
+
 		try {
 			const rawValue = message.value?.toString();
 			if (!rawValue) {
@@ -248,7 +258,13 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
 				case "dlq":
 					this.telemetry.increment("messages.dlq");
-					await this.sendToDLQ(envelope, result.error, logContext, emailId);
+					await this.sendToDLQ(
+						envelope,
+						result.error,
+						logContext,
+						emailId,
+						workerContext,
+					);
 					break;
 			}
 		} catch (error) {
@@ -259,7 +275,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				err.stack,
 				JSON.stringify(logContext),
 			);
-			await this.sendRawToDLQ(message, err, logContext);
+			await this.sendRawToDLQ(message, err, logContext, workerContext);
 		}
 	}
 
@@ -417,11 +433,12 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		error: Error,
 		logContext: Record<string, unknown>,
 		emailId?: string,
+		context?: WorkerContext,
 	): Promise<void> {
 		const errorCode = "PROCESSING_FAILED";
 
 		try {
-			const dlqPayload = {
+			const dlqPayload: Record<string, unknown> = {
 				dlq_id: uuidv4(),
 				original_topic: this.config.kafka.topicIn,
 				original_message: envelope,
@@ -436,6 +453,14 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				processing_service: this.config.service,
 				dlq_at: new Date().toISOString(),
 			};
+
+			// Add context fields if available
+			if (context?.partition !== undefined) {
+				dlqPayload["original_partition"] = context.partition;
+			}
+			if (context?.offset) {
+				dlqPayload["original_offset"] = context.offset;
+			}
 
 			await this.producer.send({
 				topic: this.config.kafka.topicDlq,
@@ -462,13 +487,14 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 				],
 			});
 
-			// Emit DLQ event
+			// Emit DLQ event with context
 			this.eventLogger.messageDLQ(
 				envelope.message_id,
 				"Processing failed after max retries",
 				errorCode,
 				error.message,
 				emailId,
+				context,
 			);
 		} catch (dlqError) {
 			this.logger.error(
@@ -483,40 +509,53 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		message: { key?: Buffer | null; value: Buffer | null },
 		error: Error,
 		logContext: Record<string, unknown>,
+		context?: WorkerContext,
 	): Promise<void> {
 		const dlqId = uuidv4();
 		const errorCode = "PARSE_ERROR";
 
 		// For malformed messages, send raw to DLQ
 		try {
+			const dlqPayload: Record<string, unknown> = {
+				dlq_id: dlqId,
+				original_topic: this.config.kafka.topicIn,
+				original_message: {
+					key: message.key?.toString(),
+					value: message.value?.toString(),
+				},
+				failure_stage: this.config.stage,
+				error_classification: "poison",
+				error_code: errorCode,
+				error_message: error.message,
+				processing_service: this.config.service,
+				dlq_at: new Date().toISOString(),
+			};
+
+			// Add context fields if available
+			if (context?.partition !== undefined) {
+				dlqPayload["original_partition"] = context.partition;
+			}
+			if (context?.offset) {
+				dlqPayload["original_offset"] = context.offset;
+			}
+
 			await this.producer.send({
 				topic: this.config.kafka.topicDlq,
 				messages: [
 					{
-						value: JSON.stringify({
-							dlq_id: dlqId,
-							original_topic: this.config.kafka.topicIn,
-							original_message: {
-								key: message.key?.toString(),
-								value: message.value?.toString(),
-							},
-							failure_stage: this.config.stage,
-							error_classification: "poison",
-							error_code: errorCode,
-							error_message: error.message,
-							processing_service: this.config.service,
-							dlq_at: new Date().toISOString(),
-						}),
+						value: JSON.stringify(dlqPayload),
 					},
 				],
 			});
 
-			// Emit DLQ event for poison message (no messageId available)
+			// Emit DLQ event for poison message with context
 			this.eventLogger.messageDLQ(
 				dlqId, // Use dlqId as messageId since original is unparseable
 				"Malformed message",
 				errorCode,
 				error.message,
+				undefined,
+				context,
 			);
 		} catch (dlqError) {
 			this.logger.error(

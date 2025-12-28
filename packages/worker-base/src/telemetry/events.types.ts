@@ -134,6 +134,12 @@ export interface MessageDLQEvent extends BaseEvent {
 	error_code: string;
 	error_message: string;
 	dlq_topic: string;
+	/** Original input topic where the message came from */
+	input_topic?: string;
+	/** Kafka partition of the original message */
+	kafka_partition?: number;
+	/** Kafka offset of the original message */
+	kafka_offset?: string;
 }
 
 export type MessageProcessingEvent =
