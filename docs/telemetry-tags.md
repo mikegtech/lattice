@@ -42,6 +42,77 @@ They are acceptable in logs and trace span attributes only.
 | `span_id` | Span ID | Log-trace correlation |
 | `message_id` | Kafka message ID | Message tracing |
 
+## Log Tiering Attributes
+
+These attributes control Datadog log indexing and are added automatically by LoggerService:
+
+| Attribute | Description | Values | Added By |
+|-----------|-------------|--------|----------|
+| `tier` | Log importance tier | `critical`, `operational`, `lifecycle`, `debug` | LoggerService |
+| `dd.forward` | Should Datadog index this log | `true`, `false` | LoggerService |
+| `dd.sampled` | Was this debug log sampled | `true` | LoggerService (debug only) |
+
+## Structured Event Naming Convention
+
+All structured events follow the pattern: `lattice.<domain>.<action>`
+
+Events are logged via `EventLogger` and include `dd.forward: true` for guaranteed indexing.
+
+### Worker Lifecycle Events
+
+| Event | Trigger | Key Attributes |
+|-------|---------|----------------|
+| `lattice.worker.starting` | Before modules init | service, version, env |
+| `lattice.worker.started` | After fully initialized | config summary |
+| `lattice.worker.shutdown.initiated` | Signal received | in_flight_count, signal |
+| `lattice.worker.shutdown.completed` | Clean shutdown | duration_ms, reason |
+
+### Message Processing Events
+
+| Event | Trigger | Key Attributes |
+|-------|---------|----------------|
+| `lattice.message.processed` | Successful processing | message_id, duration_ms, email_id |
+| `lattice.message.skipped` | Idempotency/filter | message_id, reason |
+| `lattice.message.retry` | Retry attempt | attempt, max_attempts, backoff_ms |
+| `lattice.message.dlq` | DLQ publish | error_code, error_message, dlq_topic |
+
+### Kafka Events
+
+| Event | Trigger | Key Attributes |
+|-------|---------|----------------|
+| `lattice.kafka.connected` | Connection established | broker, client_id, group_id |
+| `lattice.kafka.disconnected` | Connection lost | broker, reason |
+| `lattice.kafka.error` | Kafka error | error_code, error_message |
+| `lattice.kafka.rebalance` | Consumer rebalance | assigned_partitions, revoked_partitions |
+
+### Database Events
+
+| Event | Trigger | Key Attributes |
+|-------|---------|----------------|
+| `lattice.database.error` | DB operation failed | error_code, operation |
+| `lattice.database.slow_query` | Query exceeded threshold | duration_ms, query_type |
+
+### Health Events
+
+| Event | Trigger | Key Attributes |
+|-------|---------|----------------|
+| `lattice.health.changed` | Health status change | previous_status, new_status, reason |
+
+### Tier Behavior
+
+| Tier | `dd.forward` | Index in Datadog | Use Case |
+|------|--------------|------------------|----------|
+| `critical` | Always `true` | Always | Exceptions, DLQ, data corruption |
+| `operational` | Always `true` | Always | Business events, errors |
+| `lifecycle` | `true` in prod | Yes | Startup, shutdown, connections |
+| `debug` | `false` (sampled) | No (unless sampled) | Local debugging |
+
+### Cost Control
+
+- Logs with `dd.forward: false` are excluded from Datadog indexes
+- Debug logs are not shipped in production by default
+- Sampling can be enabled for debug logs via `sampleDebugRate` config
+
 ## Approved Metric Dimensions
 
 In addition to the required and optional tags, these low-cardinality dimensions are
@@ -188,3 +259,31 @@ environment:
   LATTICE_DOMAIN: mail
   LATTICE_STAGE: parse
 ```
+## Datadog Log-Based Metrics
+
+These metrics are derived from logs via Terraform-managed configuration (`infra/datadog/pipelines.tf`):
+
+| Metric | Type | Source | Dimensions |
+|--------|------|--------|------------|
+| `lattice.processing.duration_ms` | Distribution | `@event:lattice.message.processed` | service, stage |
+| `lattice.dlq.count` | Count | `@event:lattice.message.dlq` | service, error_code |
+| `lattice.messages.processed` | Count | `@event:lattice.message.processed` | service, stage |
+| `lattice.errors.count` | Count | `level:error` | service, error_code |
+
+### Using Log-Based Metrics
+
+Query in Datadog:
+```
+avg:lattice.processing.duration_ms{service:lattice-worker-mail-embedder} by {stage}
+p95:lattice.processing.duration_ms{*}
+sum:lattice.dlq.count{*} by {error_code}.as_count()
+```
+
+### Cardinality Note
+
+Log-based metrics inherit cardinality from their dimensions. The dimensions above are intentionally low-cardinality:
+- `service`: ~6 values (one per worker)
+- `stage`: ~6 values (parse, chunk, embed, upsert, delete, audit)
+- `error_code`: Should be < 50 distinct codes
+
+Do NOT add high-cardinality dimensions (email_id, message_id) to log-based metrics.

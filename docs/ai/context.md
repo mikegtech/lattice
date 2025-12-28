@@ -96,6 +96,28 @@ This file overrides chat history.
 - Audit events published to `lattice.audit.events.v1`
 - NestJS worker `audit-writer` consumes and persists audit events
 
+### Phase 9 – Datadog Observability Infrastructure (COMPLETE)
+- Terraform-managed Datadog configuration (`infra/datadog/`)
+- Log pipeline with tier-aware processing
+- Log-based metrics for performance monitoring:
+  - `lattice.processing.duration_ms` (distribution)
+  - `lattice.dlq.count` (count by error_code)
+  - `lattice.messages.processed` (count by stage)
+  - `lattice.errors.count` (count by service)
+- Detection rules (17 monitors):
+  - DLQ monitors (spike, schema errors, critical volume)
+  - Error rate monitors (high rate, sustained, spike)
+  - Availability monitors (no logs, shutdown, restarts)
+  - Kafka connectivity monitors (connection errors, timeouts, all disconnected)
+  - Performance monitors (latency P95, throughput drop)
+  - Deployment monitors (success/failure events)
+- Comprehensive dashboard ("Lattice Worker Health")
+- GitHub Actions workflow for Terraform CI/CD (`terraform-datadog.yml`)
+- All notifications flow through Datadog (no direct Slack webhooks)
+- GCS backend for Terraform state
+
+---
+
 ---
 
 ## Stabilization Rules

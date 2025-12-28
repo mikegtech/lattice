@@ -7,6 +7,7 @@
 
 import { Injectable } from "@nestjs/common";
 import type { WorkerConfig } from "../config/config.module.js";
+import type { WorkerContext } from "../kafka/types.js";
 import type {
 	BaseEvent,
 	DatabaseErrorEvent,
@@ -236,6 +237,7 @@ export class EventLogger {
 		errorCode: string,
 		errorMessage: string,
 		emailId?: string,
+		context?: WorkerContext,
 	): void {
 		const event: MessageDLQEvent = {
 			...createBaseEvent("lattice.message.dlq"),
@@ -245,8 +247,13 @@ export class EventLogger {
 			error_code: errorCode,
 			error_message: errorMessage,
 			dlq_topic: this.config.kafka.topicDlq,
+			...(emailId && { email_id: emailId }),
+			...(context?.topic && { input_topic: context.topic }),
+			...(context?.partition !== undefined && {
+				kafka_partition: context.partition,
+			}),
+			...(context?.offset && { kafka_offset: context.offset }),
 		};
-		if (emailId) event.email_id = emailId;
 		this.emit(event);
 	}
 
