@@ -8,6 +8,7 @@ import {
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "./db/database.module.js";
 import { MilvusModule } from "./milvus/milvus.module.js";
+import { StorageModule } from "./storage/storage.module.js";
 import { WorkerModule } from "./worker/worker.module.js";
 
 @Module({
@@ -26,6 +27,7 @@ import { WorkerModule } from "./worker/worker.module.js";
 		// Worker-specific modules
 		DatabaseModule.forRoot(),
 		MilvusModule,
+		StorageModule,
 		WorkerModule,
 	],
 })

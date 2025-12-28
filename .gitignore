@@ -86,6 +86,9 @@ temp/
 *.tmp
 *.bak
 
+# Test/scratch scripts
+scripts/
+
 # Terraform
 .terraform/
 .terraform.lock.hcl

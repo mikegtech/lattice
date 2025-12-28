@@ -18,10 +18,15 @@ import {
 	MILVUS_SERVICE,
 	type MilvusService,
 } from "../milvus/milvus.service.js";
+import { StorageModule } from "../storage/storage.module.js";
+import {
+	STORAGE_SERVICE,
+	type StorageService,
+} from "../storage/storage.service.js";
 import { MailDeleterService } from "./worker.service.js";
 
 @Module({
-	imports: [MilvusModule],
+	imports: [MilvusModule, StorageModule],
 	providers: [
 		{
 			provide: DELETION_REPOSITORY,
@@ -38,6 +43,7 @@ import { MailDeleterService } from "./worker.service.js";
 				config: WorkerConfig,
 				deletionRepo: DeletionRepository,
 				milvusService: MilvusService,
+				storageService: StorageService,
 			) => {
 				return new MailDeleterService(
 					kafka,
@@ -46,6 +52,7 @@ import { MailDeleterService } from "./worker.service.js";
 					config,
 					deletionRepo,
 					milvusService,
+					storageService,
 				);
 			},
 			inject: [
@@ -55,6 +62,7 @@ import { MailDeleterService } from "./worker.service.js";
 				WORKER_CONFIG,
 				DELETION_REPOSITORY,
 				MILVUS_SERVICE,
+				STORAGE_SERVICE,
 			],
 		},
 	],

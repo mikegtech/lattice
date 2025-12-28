@@ -352,6 +352,8 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
     try:
         for email in eligible_emails:
             # Build deletion request payload
+            # Note: tenant_id and account_id are required in BOTH the envelope AND payload
+            # The envelope has them for routing, the payload has them for worker validation
             request_id = str(uuid4())
             payload = {
                 "request_id": request_id,
@@ -370,16 +372,23 @@ def publish_delete_requests(sweep_data: dict[str, Any]) -> dict[str, Any]:
 
             # Headers without PII
             headers = {
-                "tenant_id": email["tenant_id"],
-                "account_id": email["account_id"],
-                "reason": "retention_sweep",
+                "x-lattice-reason": "retention_sweep",
             }
 
-            # Publish with email_id as key for stable partitioning
-            producer.publish(
+            # Publish with envelope wrapper for TypeScript worker compatibility
+            producer.publish_envelope(
                 topic=TOPIC_MAIL_DELETE,
                 key=email["email_id"],
-                value=payload,
+                payload=payload,
+                tenant_id=email["tenant_id"],
+                account_id=email["account_id"],
+                domain="mail",
+                stage="delete",
+                source_service="retention-sweep",
+                source_version="1.0.0",
+                schema_version="v1",
+                data_classification="confidential",
+                contains_pii=False,
                 headers=headers,
             )
 

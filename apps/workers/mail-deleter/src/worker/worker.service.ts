@@ -15,8 +15,13 @@ import { Injectable } from "@nestjs/common";
 import type {
 	DeletionRepository,
 	DeletionStats,
+	EmailToDelete,
 } from "../db/deletion.repository.js";
 import type { DeleteResult, MilvusService } from "../milvus/milvus.service.js";
+import type {
+	StorageDeleteResult,
+	StorageService,
+} from "../storage/storage.service.js";
 
 export interface DeletionResult {
 	emails_deleted: number;
@@ -38,6 +43,7 @@ export class MailDeleterService extends BaseWorkerService<
 		config: WorkerConfig,
 		private readonly deletionRepository: DeletionRepository,
 		private readonly milvusService: MilvusService,
+		private readonly storageService: StorageService,
 	) {
 		super(kafka, telemetry, logger, config);
 	}
@@ -191,13 +197,18 @@ export class MailDeleterService extends BaseWorkerService<
 
 			// Step 7: Delete from object storage (if enabled)
 			if (payload.delete_storage) {
-				// TODO: Implement object storage deletion
-				// For now, log a warning that this is not yet implemented
-				this.logger.warn(
-					"Object storage deletion not yet implemented",
+				const storageResult = await this.deleteFromStorage(
+					emailsToDelete,
 					logContext,
 				);
-				stats.storage_deleted = 0;
+				stats.storage_deleted = storageResult.deleted;
+
+				if (storageResult.errors.length > 0) {
+					this.logger.warn("Partial storage deletion errors", {
+						...logContext,
+						errors: storageResult.errors,
+					});
+				}
 			}
 
 			// Step 8: Mark completed
@@ -365,6 +376,55 @@ export class MailDeleterService extends BaseWorkerService<
 				err.stack,
 				JSON.stringify(logContext),
 			);
+			return {
+				deleted: 0,
+				errors: [err.message],
+			};
+		}
+	}
+
+	private async deleteFromStorage(
+		emails: EmailToDelete[],
+		logContext: Record<string, unknown>,
+	): Promise<StorageDeleteResult> {
+		// Filter to emails that have a raw_object_uri
+		const uris = emails
+			.map((e) => e.raw_object_uri)
+			.filter((uri): uri is string => uri !== null && uri !== "");
+
+		if (uris.length === 0) {
+			this.logger.debug("No storage objects to delete", logContext);
+			return { deleted: 0, errors: [] };
+		}
+
+		this.logger.debug("Deleting from object storage", {
+			...logContext,
+			object_count: uris.length,
+		});
+
+		const startTime = Date.now();
+
+		try {
+			const result = await this.storageService.deleteObjects(uris);
+
+			this.telemetry.timing("deletion.storage_ms", Date.now() - startTime);
+			this.telemetry.increment("storage.objects.deleted", result.deleted);
+
+			this.logger.debug("Storage deletion completed", {
+				...logContext,
+				deleted: result.deleted,
+				errors: result.errors.length,
+			});
+
+			return result;
+		} catch (error) {
+			const err = error instanceof Error ? error : new Error(String(error));
+			this.logger.error(
+				"Storage deletion failed",
+				err.stack,
+				JSON.stringify(logContext),
+			);
+			// Don't fail the whole deletion if storage fails
 			return {
 				deleted: 0,
 				errors: [err.message],
