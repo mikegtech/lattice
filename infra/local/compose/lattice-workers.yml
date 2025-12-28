@@ -39,6 +39,11 @@ x-milvus-env: &milvus-env
   MILVUS_COLLECTION: email_chunks_v1
   MILVUS_CONNECT_TIMEOUT_MS: "10000"
 
+x-storage-env: &storage-env
+  MINIO_ENDPOINT: http://minio:9000
+  MINIO_ACCESS_KEY: minioadmin
+  MINIO_SECRET_KEY: minioadmin # pragma: allowlist secret
+
 services:
   # ==========================================================================
   # Mail Parser Worker
@@ -234,7 +239,7 @@ services:
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-deleter"}]'
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *milvus-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *milvus-env, *storage-env, *datadog-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-deleter
       DD_VERSION: "0.1.0"

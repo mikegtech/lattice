@@ -31,6 +31,7 @@ export interface EmailToDelete {
 	provider_message_id: string;
 	tenant_id: string;
 	account_id: string;
+	raw_object_uri: string | null;
 }
 
 export interface ChunkToDelete {
@@ -168,21 +169,21 @@ export class DeletionRepository {
 
 		switch (payload.request_type) {
 			case "single_email":
-				query = `SELECT id, provider_message_id, tenant_id, account_id
+				query = `SELECT id, provider_message_id, tenant_id, account_id, raw_object_uri
 				         FROM email
 				         WHERE id = $1 AND deleted_at IS NULL`;
 				params = [payload.email_id];
 				break;
 
 			case "account":
-				query = `SELECT id, provider_message_id, tenant_id, account_id
+				query = `SELECT id, provider_message_id, tenant_id, account_id, raw_object_uri
 				         FROM email
 				         WHERE tenant_id = $1 AND account_id = $2 AND deleted_at IS NULL`;
 				params = [payload.tenant_id, payload.account_id];
 				break;
 
 			case "alias":
-				query = `SELECT e.id, e.provider_message_id, e.tenant_id, e.account_id
+				query = `SELECT e.id, e.provider_message_id, e.tenant_id, e.account_id, e.raw_object_uri
 				         FROM email e
 				         JOIN mail_accounts ma ON e.tenant_id = ma.tenant_id AND e.account_id = ma.account_id
 				         WHERE e.tenant_id = $1 AND e.account_id = $2 AND ma.alias = $3 AND e.deleted_at IS NULL`;
@@ -190,7 +191,7 @@ export class DeletionRepository {
 				break;
 
 			case "retention_sweep":
-				query = `SELECT id, provider_message_id, tenant_id, account_id
+				query = `SELECT id, provider_message_id, tenant_id, account_id, raw_object_uri
 				         FROM email
 				         WHERE tenant_id = $1 AND account_id = $2
 				           AND received_at < $3 AND deleted_at IS NULL`;

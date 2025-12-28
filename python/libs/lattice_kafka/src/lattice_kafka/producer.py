@@ -3,12 +3,20 @@
 import json
 import logging
 import os
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Literal
+from uuid import uuid4
 
 from confluent_kafka import Producer
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+# Type definitions for envelope fields
+Domain = Literal["mail", "calendar", "drive", "contacts"]
+Stage = Literal["raw", "parse", "chunk", "embed", "upsert", "delete", "audit"]
+DataClassification = Literal["public", "internal", "confidential", "restricted"]
 
 
 class KafkaProducerConfig(BaseModel):
@@ -136,6 +144,81 @@ class KafkaProducer:
     def close(self) -> None:
         """Flush and close the producer."""
         self.flush()
+
+    def publish_envelope(
+        self,
+        topic: str,
+        key: str,
+        payload: dict[str, Any],
+        tenant_id: str,
+        account_id: str,
+        domain: Domain,
+        stage: Stage,
+        source_service: str = "lattice-python",
+        source_version: str = "1.0.0",
+        schema_version: str = "v1",
+        data_classification: DataClassification = "confidential",
+        contains_pii: bool = True,
+        pii_fields: list[str] | None = None,
+        headers: dict[str, str] | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
+    ) -> str:
+        """
+        Publish a message wrapped in the standard Lattice envelope format.
+
+        Args:
+            topic: Kafka topic name
+            key: Message key (used for partitioning)
+            payload: Message payload (will be wrapped in envelope)
+            tenant_id: Tenant ID for the message
+            account_id: Account ID for the message
+            domain: Domain (mail, calendar, drive, contacts)
+            stage: Processing stage (raw, parse, chunk, embed, upsert, delete, audit)
+            source_service: Name of the service producing the message
+            source_version: Version of the service
+            schema_version: Schema version (e.g., "v1")
+            data_classification: Data classification level
+            contains_pii: Whether the payload contains PII
+            pii_fields: List of field names containing PII
+            headers: Optional additional message headers
+            trace_id: Optional trace ID for distributed tracing
+            span_id: Optional span ID for distributed tracing
+
+        Returns:
+            The generated message_id for the envelope
+        """
+        message_id = str(uuid4())
+
+        envelope: dict[str, Any] = {
+            "message_id": message_id,
+            "tenant_id": tenant_id,
+            "account_id": account_id,
+            "domain": domain,
+            "stage": stage,
+            "schema_version": schema_version,
+            "created_at": datetime.now(UTC).isoformat(),
+            "source": {
+                "service": source_service,
+                "version": source_version,
+            },
+            "data_classification": data_classification,
+            "pii": {
+                "contains_pii": contains_pii,
+                "pii_fields": pii_fields or (["payload"] if contains_pii else []),
+            },
+            "payload": payload,
+        }
+
+        if trace_id:
+            envelope["trace_id"] = trace_id
+        if span_id:
+            envelope["span_id"] = span_id
+
+        # Publish the envelope
+        self.publish(topic, key, envelope, headers)
+
+        return message_id
 
 
 # Topic constants

@@ -13,6 +13,7 @@ import type {
 	EmailToDelete,
 } from "../db/deletion.repository.js";
 import type { MilvusService } from "../milvus/milvus.service.js";
+import type { StorageService } from "../storage/storage.service.js";
 import { MailDeleterService } from "./worker.service.js";
 
 const createMockKafkaService = (): KafkaService =>
@@ -111,12 +112,18 @@ const createMockDeletionRecord = (
 	last_error: status === "failed" ? "Previous error" : null,
 });
 
-const createMockEmailsToDelete = (count: number): EmailToDelete[] =>
+const createMockEmailsToDelete = (
+	count: number,
+	withStorage = false,
+): EmailToDelete[] =>
 	Array.from({ length: count }, (_, i) => ({
 		id: `email-${i}`,
 		provider_message_id: `msg-${i}`,
 		tenant_id: "tenant-1",
 		account_id: "account-1",
+		raw_object_uri: withStorage
+			? `s3://lattice-raw/tenant-1/account-1/msg-${i}/message.eml`
+			: null,
 	}));
 
 describe("MailDeleterService", () => {
@@ -127,6 +134,7 @@ describe("MailDeleterService", () => {
 	let mockConfig: WorkerConfig;
 	let mockDeletionRepo: DeletionRepository;
 	let mockMilvusService: MilvusService;
+	let mockStorageService: StorageService;
 
 	beforeEach(() => {
 		mockKafka = createMockKafkaService();
@@ -158,6 +166,13 @@ describe("MailDeleterService", () => {
 			onModuleDestroy: vi.fn(),
 		} as unknown as MilvusService;
 
+		mockStorageService = {
+			deleteObject: vi.fn(),
+			deleteObjects: vi.fn(),
+			healthCheck: vi.fn(),
+			onModuleDestroy: vi.fn(),
+		} as unknown as StorageService;
+
 		service = new MailDeleterService(
 			mockKafka,
 			mockTelemetry,
@@ -165,6 +180,7 @@ describe("MailDeleterService", () => {
 			mockConfig,
 			mockDeletionRepo,
 			mockMilvusService,
+			mockStorageService,
 		);
 	});
 
@@ -608,6 +624,207 @@ describe("MailDeleterService", () => {
 			expect(result.status).toBe("success");
 			expect(result.output.emails_deleted).toBe(0);
 			expect(mockDeletionRepo.deleteEmailData).not.toHaveBeenCalled();
+		});
+
+		it("should skip storage deletion when delete_storage is false", async () => {
+			const payload = createTestPayload({ delete_storage: false });
+			const context = createTestContext();
+			const emails = createMockEmailsToDelete(1, true);
+
+			vi.mocked(mockDeletionRepo.upsertDeletionRequest).mockResolvedValue({
+				isNew: true,
+				record: createMockDeletionRecord("pending"),
+			});
+			vi.mocked(mockDeletionRepo.getEmailsToDelete).mockResolvedValue(emails);
+			vi.mocked(mockMilvusService.deleteByEmailIds).mockResolvedValue({
+				deleted: 1,
+				errors: [],
+			});
+			vi.mocked(mockDeletionRepo.deleteEmailData).mockResolvedValue({
+				emails_deleted: 1,
+				chunks_deleted: 5,
+				embeddings_deleted: 5,
+			});
+
+			const result = await (service as any).process(payload, context);
+
+			expect(result.status).toBe("success");
+			expect(result.output.storage_objects_deleted).toBe(0);
+			expect(mockStorageService.deleteObjects).not.toHaveBeenCalled();
+		});
+
+		it("should delete from storage when delete_storage is true", async () => {
+			const payload = createTestPayload({ delete_storage: true });
+			const context = createTestContext();
+			const emails = createMockEmailsToDelete(3, true);
+
+			vi.mocked(mockDeletionRepo.upsertDeletionRequest).mockResolvedValue({
+				isNew: true,
+				record: createMockDeletionRecord("pending"),
+			});
+			vi.mocked(mockDeletionRepo.getEmailsToDelete).mockResolvedValue(emails);
+			vi.mocked(mockMilvusService.deleteByEmailIds).mockResolvedValue({
+				deleted: 3,
+				errors: [],
+			});
+			vi.mocked(mockDeletionRepo.deleteEmailData).mockResolvedValue({
+				emails_deleted: 3,
+				chunks_deleted: 15,
+				embeddings_deleted: 15,
+			});
+			vi.mocked(mockStorageService.deleteObjects).mockResolvedValue({
+				deleted: 3,
+				errors: [],
+			});
+
+			const result = await (service as any).process(payload, context);
+
+			expect(result.status).toBe("success");
+			expect(result.output.storage_objects_deleted).toBe(3);
+			expect(mockStorageService.deleteObjects).toHaveBeenCalledWith([
+				"s3://lattice-raw/tenant-1/account-1/msg-0/message.eml",
+				"s3://lattice-raw/tenant-1/account-1/msg-1/message.eml",
+				"s3://lattice-raw/tenant-1/account-1/msg-2/message.eml",
+			]);
+		});
+	});
+
+	describe("Storage Deletion", () => {
+		it("should skip storage deletion when emails have no raw_object_uri", async () => {
+			const payload = createTestPayload({ delete_storage: true });
+			const context = createTestContext();
+			const emails = createMockEmailsToDelete(2, false);
+
+			vi.mocked(mockDeletionRepo.upsertDeletionRequest).mockResolvedValue({
+				isNew: true,
+				record: createMockDeletionRecord("pending"),
+			});
+			vi.mocked(mockDeletionRepo.getEmailsToDelete).mockResolvedValue(emails);
+			vi.mocked(mockMilvusService.deleteByEmailIds).mockResolvedValue({
+				deleted: 2,
+				errors: [],
+			});
+			vi.mocked(mockDeletionRepo.deleteEmailData).mockResolvedValue({
+				emails_deleted: 2,
+				chunks_deleted: 10,
+				embeddings_deleted: 10,
+			});
+
+			const result = await (service as any).process(payload, context);
+
+			expect(result.status).toBe("success");
+			expect(result.output.storage_objects_deleted).toBe(0);
+			expect(mockStorageService.deleteObjects).not.toHaveBeenCalled();
+		});
+
+		it("should handle partial storage deletion errors gracefully", async () => {
+			const payload = createTestPayload({ delete_storage: true });
+			const context = createTestContext();
+			const emails = createMockEmailsToDelete(3, true);
+
+			vi.mocked(mockDeletionRepo.upsertDeletionRequest).mockResolvedValue({
+				isNew: true,
+				record: createMockDeletionRecord("pending"),
+			});
+			vi.mocked(mockDeletionRepo.getEmailsToDelete).mockResolvedValue(emails);
+			vi.mocked(mockMilvusService.deleteByEmailIds).mockResolvedValue({
+				deleted: 3,
+				errors: [],
+			});
+			vi.mocked(mockDeletionRepo.deleteEmailData).mockResolvedValue({
+				emails_deleted: 3,
+				chunks_deleted: 15,
+				embeddings_deleted: 15,
+			});
+			vi.mocked(mockStorageService.deleteObjects).mockResolvedValue({
+				deleted: 2,
+				errors: [
+					"Failed to delete s3://lattice-raw/tenant-1/account-1/msg-2/message.eml",
+				],
+			});
+
+			const result = await (service as any).process(payload, context);
+
+			expect(result.status).toBe("success");
+			expect(result.output.storage_objects_deleted).toBe(2);
+			expect(mockLogger.warn).toHaveBeenCalledWith(
+				"Partial storage deletion errors",
+				expect.objectContaining({
+					errors: expect.arrayContaining([
+						expect.stringContaining("Failed to delete"),
+					]),
+				}),
+			);
+		});
+
+		it("should continue deletion if storage service throws an error", async () => {
+			const payload = createTestPayload({ delete_storage: true });
+			const context = createTestContext();
+			const emails = createMockEmailsToDelete(1, true);
+
+			vi.mocked(mockDeletionRepo.upsertDeletionRequest).mockResolvedValue({
+				isNew: true,
+				record: createMockDeletionRecord("pending"),
+			});
+			vi.mocked(mockDeletionRepo.getEmailsToDelete).mockResolvedValue(emails);
+			vi.mocked(mockMilvusService.deleteByEmailIds).mockResolvedValue({
+				deleted: 1,
+				errors: [],
+			});
+			vi.mocked(mockDeletionRepo.deleteEmailData).mockResolvedValue({
+				emails_deleted: 1,
+				chunks_deleted: 5,
+				embeddings_deleted: 5,
+			});
+			vi.mocked(mockStorageService.deleteObjects).mockRejectedValue(
+				new Error("S3 connection failed"),
+			);
+
+			const result = await (service as any).process(payload, context);
+
+			expect(result.status).toBe("success");
+			expect(result.output.storage_objects_deleted).toBe(0);
+			expect(mockLogger.error).toHaveBeenCalledWith(
+				"Storage deletion failed",
+				expect.any(String),
+				expect.any(String),
+			);
+		});
+
+		it("should emit storage timing and counter metrics", async () => {
+			const payload = createTestPayload({ delete_storage: true });
+			const context = createTestContext();
+			const emails = createMockEmailsToDelete(2, true);
+
+			vi.mocked(mockDeletionRepo.upsertDeletionRequest).mockResolvedValue({
+				isNew: true,
+				record: createMockDeletionRecord("pending"),
+			});
+			vi.mocked(mockDeletionRepo.getEmailsToDelete).mockResolvedValue(emails);
+			vi.mocked(mockMilvusService.deleteByEmailIds).mockResolvedValue({
+				deleted: 2,
+				errors: [],
+			});
+			vi.mocked(mockDeletionRepo.deleteEmailData).mockResolvedValue({
+				emails_deleted: 2,
+				chunks_deleted: 10,
+				embeddings_deleted: 10,
+			});
+			vi.mocked(mockStorageService.deleteObjects).mockResolvedValue({
+				deleted: 2,
+				errors: [],
+			});
+
+			await (service as any).process(payload, context);
+
+			expect(mockTelemetry.timing).toHaveBeenCalledWith(
+				"deletion.storage_ms",
+				expect.any(Number),
+			);
+			expect(mockTelemetry.increment).toHaveBeenCalledWith(
+				"storage.objects.deleted",
+				2,
+			);
 		});
 	});
 
