@@ -29,7 +29,15 @@ export interface Envelope<T = unknown> {
 	account_id: string;
 	alias?: string;
 	domain: "mail" | "calendar" | "drive" | "contacts";
-	stage: "raw" | "parse" | "chunk" | "embed" | "upsert" | "delete" | "audit";
+	stage:
+		| "raw"
+		| "parse"
+		| "extract"
+		| "chunk"
+		| "embed"
+		| "upsert"
+		| "delete"
+		| "audit";
 	schema_version: string;
 	created_at: string;
 	source: EnvelopeSource;
@@ -92,6 +100,7 @@ const VALID_DOMAINS = ["mail", "calendar", "drive", "contacts"];
 const VALID_STAGES = [
 	"raw",
 	"parse",
+	"extract",
 	"chunk",
 	"embed",
 	"upsert",

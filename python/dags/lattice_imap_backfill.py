@@ -1,219 +1,176 @@
 """
-Lattice IMAP Backfill DAG
+Lattice IMAP Backfill DAG - Catchup-Based Sequential Processing
+================================================================
+Backfills IMAP messages day-by-day using Airflow's catchup mechanism.
 
-Backfills historical IMAP messages from a specified folder.
-Manually triggered with parameters for tenant_id, account_id, folder, date range.
-
-Features:
-- Date-controllable backfill windows
-- Rate limiting via limit_per_run parameter
-- Idempotent: processes only messages still in source folder
-- Supports bounded fetch windows for resumable processing
+Architecture:
+- Uses execution_date to determine which day to process
+- Loops internally until ALL messages for that day are processed (batch size: 100)
+- Idempotency via folder move (moves processed messages to Lattice/<alias> folder)
+- Sequential processing via depends_on_past=True
 
 Usage:
-    Trigger via Airflow UI or CLI with parameters:
-    {
-        "tenant_id": "personal",
-        "account_id": "workmail-imap",
-        "folder": "INBOX",
-        "start_date": "2024-01-01",
-        "end_date": "2024-01-31",
-        "limit_per_run": 100
-    }
+1. Set Airflow Variables for account configuration:
+   - lattice_imap_tenant_id (default: personal)
+   - lattice_imap_account_id (default: personal-imap)
+   - lattice_imap_alias (default: inbox)
+   - lattice_imap_source_folder (default: INBOX)
 
-    CLI example:
-    airflow dags trigger lattice__imap_backfill --conf '{"tenant_id": "personal", ...}'
+2. Set start_date and end_date to define backfill window
+
+3. Unpause the DAG - Airflow will create runs for each day
+
+4. Monitor progress in Airflow UI
+
+5. Pause when complete or adjust end_date to extend
+
+Configuration (via Airflow Variables):
+- lattice_imap_tenant_id: Tenant identifier
+- lattice_imap_account_id: Account identifier
+- lattice_imap_alias: Folder alias (e.g., 'inbox')
+- lattice_imap_source_folder: Source IMAP folder (default: INBOX)
+
+Configuration (via environment for credentials):
+- IMAP_HOST, IMAP_PORT, IMAP_USERNAME, IMAP_PASSWORD
+
+Design Properties:
+- Idempotent: Already-moved messages won't be in source folder
+- Resumable: If a run fails mid-batch, re-run processes remaining messages
+- Sequential: depends_on_past ensures Day N waits for Day N-1
+- Observable: Detailed logging without PII exposure
+
+IMAP-Specific Considerations:
+- Uses IMAP SEARCH with SINCE/BEFORE date criteria
+- Date filtering is server-side (efficient for large mailboxes)
+- UID-based fetching for reliability
+- Folder creation is automatic if target doesn't exist
 """
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from airflow import DAG
-from airflow.decorators import task
-from airflow.models.param import Param
+from airflow.models import Variable
+from airflow.operators.python import PythonOperator
 
-# DAG default args with extended retry policy for backfill
+# Import shared task functions
+from lattice_mail_tasks import imap_backfill_day_task
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+# Account configuration - set via Airflow Variables or use defaults
+# Set via CLI:
+#   airflow variables set lattice_imap_tenant_id personal
+#   airflow variables set lattice_imap_account_id personal-imap
+#   airflow variables set lattice_imap_alias inbox
+#   airflow variables set lattice_imap_source_folder INBOX
+IMAP_TENANT_ID = Variable.get("lattice_imap_tenant_id", default_var="personal")
+IMAP_ACCOUNT_ID = Variable.get("lattice_imap_account_id", default_var="personal-imap")
+IMAP_ALIAS = Variable.get("lattice_imap_alias", default_var="inbox")
+SOURCE_FOLDER = Variable.get("lattice_imap_source_folder", default_var="INBOX")
+
+# Backfill window - adjust these to control what gets processed
+BACKFILL_START_DATE = datetime(2024, 4, 1)
+BACKFILL_END_DATE = datetime(2024, 4, 30)
+
+# Processing settings
+BATCH_SIZE = 100  # Messages per internal loop iteration
+MAX_BATCHES_PER_RUN = None  # None = unlimited (process all messages for the day)
+
 default_args = {
     "owner": "lattice",
-    "depends_on_past": False,
-    "email_on_failure": True,
-    "email_on_retry": False,
-    "retries": 5,
+    "depends_on_past": True,  # CRITICAL: Wait for previous day to complete
+    "wait_for_downstream": True,
+    "retries": 3,
     "retry_delay": timedelta(minutes=5),
     "execution_timeout": timedelta(hours=2),
+    "email_on_failure": False,
+    "email_on_retry": False,
 }
 
 
-@task
-def validate_params(params: dict[str, Any]) -> dict[str, Any]:
-    """Validate and parse backfill parameters."""
-    tenant_id = params.get("tenant_id")
-    account_id = params.get("account_id")
-    folder = params.get("folder", "INBOX")
-    start_date_str = params.get("start_date")
-    end_date_str = params.get("end_date")
-    limit_per_run = params.get("limit_per_run", 100)
+# =============================================================================
+# DAG DEFINITION
+# =============================================================================
 
-    if not all([tenant_id, account_id, start_date_str, end_date_str]):
-        raise ValueError("Missing required parameters: tenant_id, account_id, start_date, end_date")
-
-    start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-
-    if start_date >= end_date:
-        raise ValueError("start_date must be before end_date")
-
-    return {
-        "tenant_id": tenant_id,
-        "account_id": account_id,
-        "folder": folder,
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "limit_per_run": limit_per_run,
-    }
+dag = DAG(
+    "lattice__imap_backfill",
+    default_args=default_args,
+    description="Backfill IMAP messages day-by-day with catchup processing",
+    schedule_interval="@daily",
+    start_date=BACKFILL_START_DATE,
+    end_date=BACKFILL_END_DATE,
+    max_active_runs=1,  # CRITICAL: Only one day at a time
+    catchup=True,
+    tags=["lattice", "imap", "backfill", "mail-ingestion"],
+)
 
 
-@task
-def load_account(tenant_id: str, account_id: str) -> dict[str, Any]:
-    """Load account details from Postgres."""
-    from lattice_mail.account_registry import AccountRegistry, PostgresConfig
-
-    pg_config = PostgresConfig.from_env()
-    registry = AccountRegistry(pg_config)
-
-    account = registry.get_account(tenant_id, account_id)
-    if not account:
-        raise ValueError(f"Account not found: {tenant_id}/{account_id}")
-
-    if account.provider != "imap":
-        raise ValueError(f"Account is not IMAP: {account.provider}")
-
-    return {
-        "tenant_id": account.tenant_id,
-        "account_id": account.account_id,
-        "alias": account.alias,
-        "provider": account.provider,
-        "source_folder": account.source_folder,
-    }
+# =============================================================================
+# TASK DEFINITIONS
+# =============================================================================
 
 
-@task
-def run_backfill(
-    account: dict[str, Any],
-    validated_params: dict[str, Any],
-) -> dict[str, Any]:
-    """Run the IMAP backfill for the specified date range."""
-    from lattice_mail_tasks import process_imap_backfill
+def run_backfill_for_account(**context):
+    """
+    Process ALL IMAP messages for a single day (derived from execution_date).
 
-    start_date = datetime.fromisoformat(validated_params["start_date"])
-    end_date = datetime.fromisoformat(validated_params["end_date"])
+    Loops internally with BATCH_SIZE until no more messages remain.
+    Uses account configuration from Airflow Variables.
+    """
+    execution_date = context["execution_date"]
 
-    result = process_imap_backfill(
-        tenant_id=account["tenant_id"],
-        account_id=account["account_id"],
-        alias=account["alias"],
-        source_folder=validated_params["folder"],
-        start_date=start_date,
-        end_date=end_date,
-        limit_per_run=validated_params["limit_per_run"],
-    )
-
-    return {
-        "account_id": result.account_id,
-        "alias": result.alias,
-        "messages_fetched": result.messages_fetched,
-        "messages_stored": result.messages_stored,
-        "messages_published": result.messages_published,
-        "messages_post_processed": result.messages_post_processed,
-        "errors": result.errors,
-        "folder": validated_params["folder"],
-        "start_date": validated_params["start_date"],
-        "end_date": validated_params["end_date"],
-    }
-
-
-@task
-def log_completion(result: dict[str, Any]) -> None:
-    """Log backfill completion."""
+    # Log configuration for debugging
     import logging
 
     logger = logging.getLogger(__name__)
+    logger.info(f"IMAP backfill starting for {execution_date.date()}")
     logger.info(
-        "IMAP backfill complete for %s/%s (folder: %s): "
-        "%d fetched, %d stored, %d published, %d moved. "
-        "Date range: %s to %s. Errors: %d",
-        result["account_id"],
-        result["alias"],
-        result["folder"],
-        result["messages_fetched"],
-        result["messages_stored"],
-        result["messages_published"],
-        result["messages_post_processed"],
-        result["start_date"],
-        result["end_date"],
-        len(result["errors"]),
+        f"Account config: tenant={IMAP_TENANT_ID}, account={IMAP_ACCOUNT_ID}, "
+        f"alias={IMAP_ALIAS}, folder={SOURCE_FOLDER}"
     )
 
-
-with DAG(
-    dag_id="lattice__imap_backfill",
-    description="IMAP mailbox backfill - fetches historical messages from folder",
-    default_args=default_args,
-    schedule=None,  # Manual trigger only
-    start_date=datetime(2024, 1, 1),
-    catchup=False,
-    max_active_runs=1,
-    tags=["lattice", "mail", "backfill", "imap", "workmail"],
-    params={
-        "tenant_id": Param(
-            default="personal",
-            type="string",
-            description="Tenant ID",
-        ),
-        "account_id": Param(
-            default="workmail-imap",
-            type="string",
-            description="Account ID (must be IMAP provider)",
-        ),
-        "folder": Param(
-            default="INBOX",
-            type="string",
-            description="Source folder to backfill from",
-        ),
-        "start_date": Param(
-            default="2024-01-01",
-            type="string",
-            description="Start date (YYYY-MM-DD) - for filtering messages by internal date",
-        ),
-        "end_date": Param(
-            default="2024-01-31",
-            type="string",
-            description="End date (YYYY-MM-DD) - for filtering messages by internal date",
-        ),
-        "limit_per_run": Param(
-            default=100,
-            type="integer",
-            description="Maximum messages to process per run",
-            minimum=1,
-            maximum=500,
-        ),
-    },
-    render_template_as_native_obj=True,
-) as dag:
-    # Validate parameters
-    validated = validate_params(params="{{ params }}")
-
-    # Load account details
-    account = load_account(
-        tenant_id="{{ params.tenant_id }}",
-        account_id="{{ params.account_id }}",
+    # Run backfill for configured account
+    result = imap_backfill_day_task(
+        execution_date=execution_date,
+        tenant_id=IMAP_TENANT_ID,
+        account_id=IMAP_ACCOUNT_ID,
+        alias=IMAP_ALIAS,
+        source_folder=SOURCE_FOLDER,
+        batch_size=BATCH_SIZE,
+        max_batches=MAX_BATCHES_PER_RUN,
     )
 
-    # Run backfill
-    result = run_backfill(account=account, validated_params=validated)
+    return {
+        "date": str(execution_date.date()),
+        "tenant_id": IMAP_TENANT_ID,
+        "account_id": IMAP_ACCOUNT_ID,
+        "alias": IMAP_ALIAS,
+        "source_folder": SOURCE_FOLDER,
+        "messages_fetched": result.get("messages_fetched", 0),
+        "messages_stored": result.get("messages_stored", 0),
+        "messages_published": result.get("messages_published", 0),
+        "messages_moved": result.get("messages_moved", 0),
+        "batches_processed": result.get("batches_processed", 0),
+        "errors": result.get("errors", []),
+    }
 
-    # Log completion
-    log_completion(result)
 
-    # Dependencies
-    validated >> account >> result
+# =============================================================================
+# TASK INSTANCES
+# =============================================================================
+
+t_run_backfill = PythonOperator(
+    task_id="run_backfill",
+    python_callable=run_backfill_for_account,
+    dag=dag,
+)
+
+
+# =============================================================================
+# TASK DEPENDENCIES
+# =============================================================================
+
+# Single task - no dependencies needed
+_ = t_run_backfill

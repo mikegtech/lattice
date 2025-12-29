@@ -150,6 +150,8 @@ During stabilization phase:
   - mail-chunker
   - mail-embedder
   - mail-upserter
+  - mail-extractor
+  - attachment-chunker
   - mail-deleter
   - audit-writer
 

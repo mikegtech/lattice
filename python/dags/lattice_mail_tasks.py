@@ -14,7 +14,7 @@ It imports from lattice_* libraries and handles:
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
@@ -433,19 +433,35 @@ def process_imap_account_incremental(
     return result
 
 
-def process_gmail_backfill(
+# =============================================================================
+# BACKFILL TASKS (Day-based with internal looping)
+# =============================================================================
+
+
+def gmail_backfill_day_task(
+    execution_date: datetime,
     tenant_id: str,
     account_id: str,
     alias: str,
-    start_date: datetime,
-    end_date: datetime,
-    limit_per_run: int = 100,
-) -> SyncResult:
+    batch_size: int = 100,
+    max_batches: int | None = None,
+) -> dict[str, Any]:
     """
-    Backfill Gmail messages within a date range.
+    Process ALL Gmail messages for a single day.
 
-    Uses date-based query to fetch historical messages.
-    Does NOT update the regular watermark - backfill is separate.
+    Loops internally until no more messages remain for the day.
+    Idempotency: Already-labeled messages are excluded from the query.
+
+    Args:
+        execution_date: The day to process (from Airflow)
+        tenant_id: Tenant identifier
+        account_id: Account identifier
+        alias: Label alias (e.g., 'inbox')
+        batch_size: Messages per loop iteration (default: 100)
+        max_batches: Maximum batches to process (None = unlimited)
+
+    Returns:
+        Summary dict with counts and any errors
     """
     from lattice_kafka import KafkaProducer, KafkaProducerConfig
     from lattice_kafka.producer import TOPIC_MAIL_RAW
@@ -454,16 +470,10 @@ def process_gmail_backfill(
     from lattice_storage import ObjectStore, ObjectStoreConfig
     from lattice_storage.object_store import build_message_key
 
-    result = SyncResult(
-        account_id=account_id,
-        alias=alias,
-        messages_fetched=0,
-        messages_stored=0,
-        messages_published=0,
-        messages_post_processed=0,
-        errors=[],
-        watermark_updated=False,
-    )
+    query_date = execution_date.date()
+    next_date = query_date + timedelta(days=1)
+
+    logger.info(f"Gmail backfill starting for {query_date} (account: {account_id})")
 
     # Initialize services
     storage_config = ObjectStoreConfig.from_env()
@@ -482,117 +492,187 @@ def process_gmail_backfill(
     )
     gmail = GmailConnector(gmail_config)
 
-    # Build date-based query
-    after_str = start_date.strftime("%Y/%m/%d")
-    before_str = end_date.strftime("%Y/%m/%d")
-    query = f"after:{after_str} before:{before_str}"
-
-    logger.info("Backfill query: %s (limit: %d)", query, limit_per_run)
-
-    # List messages
-    message_ids, _ = gmail.list_message_ids_by_query(query, max_results=limit_per_run)
+    # Build Gmail query for the day, excluding already-processed
+    label_name = f"Lattice/{alias}"
+    base_query = f"after:{query_date.strftime('%Y/%m/%d')} before:{next_date.strftime('%Y/%m/%d')}"
+    exclusion_query = f"-label:{label_name}"
+    full_query = f"{base_query} {exclusion_query}"
     scope = "INBOX"
 
-    for msg_id in message_ids:
-        try:
-            # Check if already labeled (idempotency)
-            label_name = f"Lattice/{alias}"
-            if gmail.has_label(msg_id, label_name):
-                logger.debug("Message already processed, skipping")
-                continue
+    logger.info(f"Backfill query: {full_query}")
 
-            # Fetch, store, publish, label
-            msg = gmail.get_message_raw(msg_id)
-            result.messages_fetched += 1
+    # Counters
+    total_fetched = 0
+    total_stored = 0
+    total_published = 0
+    total_labeled = 0
+    errors = []
+    batch_count = 0
 
-            key = build_message_key(
-                tenant_id=tenant_id,
-                account_id=account_id,
-                alias=alias,
-                provider="gmail",
-                provider_message_id=msg.message_id,
+    try:
+        while True:
+            # Check batch limit
+            if max_batches is not None and batch_count >= max_batches:
+                logger.info(f"Reached max batches limit: {max_batches}")
+                break
+
+            # Fetch next batch
+            message_ids, _ = gmail.list_message_ids_by_query(
+                query=full_query,
+                max_results=batch_size,
             )
-            uri = object_store.put_bytes(
-                key=key,
-                data=msg.raw_bytes,
-                content_type="message/rfc822",
-            )
-            result.messages_stored += 1
 
-            attachments = gmail.list_attachments(msg.message_id)
-            manifest = [
-                AttachmentManifestItem(
-                    attachment_id=a.attachment_id,
-                    filename=a.filename,
-                    content_type=a.mime_type,
-                    size_bytes=a.size_bytes,
-                )
-                for a in attachments
-            ]
+            if not message_ids:
+                logger.info(f"No more messages for {query_date}")
+                break
 
+            batch_fetched = len(message_ids)
+            batch_stored = 0
+            batch_published = 0
+            batch_labeled = 0
+
+            for msg_id in message_ids:
+                try:
+                    # 1. Fetch full message
+                    msg = gmail.get_message_raw(msg_id)
+
+                    # 2. Store to object storage
+                    key = build_message_key(
+                        tenant_id=tenant_id,
+                        account_id=account_id,
+                        alias=alias,
+                        provider="gmail",
+                        provider_message_id=msg.message_id,
+                    )
+                    uri = object_store.put_bytes(
+                        key=key,
+                        data=msg.raw_bytes,
+                        content_type="message/rfc822",
+                    )
+                    batch_stored += 1
+
+                    # 3. Get attachments manifest
+                    attachments = gmail.list_attachments(msg.message_id)
+                    manifest = [
+                        AttachmentManifestItem(
+                            attachment_id=a.attachment_id,
+                            filename=a.filename,
+                            content_type=a.mime_type,
+                            size_bytes=a.size_bytes,
+                        )
+                        for a in attachments
+                    ]
+
+                    # 4. Publish to Kafka (if configured)
+                    if producer:
+                        event = build_raw_event(
+                            tenant_id=tenant_id,
+                            account_id=account_id,
+                            alias=alias,
+                            provider="gmail",
+                            provider_message_id=msg.message_id,
+                            raw_bytes=msg.raw_bytes,
+                            raw_object_uri=uri,
+                            received_at=msg.internal_date,
+                            provider_thread_id=msg.thread_id,
+                            scope=scope,
+                            gmail_metadata={
+                                "history_id": msg.history_id,
+                                "label_ids": msg.label_ids,
+                                "internal_date": msg.internal_date.isoformat(),
+                                "backfill": True,
+                            },
+                            attachments_manifest=manifest,
+                        )
+                        producer.publish(
+                            topic=TOPIC_MAIL_RAW,
+                            key=msg.message_id,
+                            value=event,
+                            headers={"provider": "gmail", "tenant_id": tenant_id, "alias": alias},
+                        )
+                        batch_published += 1
+
+                    # 5. Apply label (idempotency marker)
+                    gmail.apply_alias_label(msg.message_id, alias)
+                    batch_labeled += 1
+
+                except Exception as e:
+                    error_msg = f"Error processing message {msg_id}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+
+            # Flush Kafka batch
             if producer:
-                event = build_raw_event(
-                    tenant_id=tenant_id,
-                    account_id=account_id,
-                    alias=alias,
-                    provider="gmail",
-                    provider_message_id=msg.message_id,
-                    raw_bytes=msg.raw_bytes,
-                    raw_object_uri=uri,
-                    received_at=msg.internal_date,
-                    provider_thread_id=msg.thread_id,
-                    scope=scope,
-                    gmail_metadata={
-                        "history_id": msg.history_id,
-                        "label_ids": msg.label_ids,
-                        "internal_date": msg.internal_date.isoformat(),
-                        "backfill": True,
-                    },
-                    attachments_manifest=manifest,
+                producer.flush()
+
+            total_fetched += batch_fetched
+            total_stored += batch_stored
+            total_published += batch_published
+            total_labeled += batch_labeled
+            batch_count += 1
+
+            logger.info(
+                f"Batch {batch_count} complete: "
+                f"{batch_fetched} fetched, {batch_stored} stored, "
+                f"{batch_published} published, {batch_labeled} labeled"
+            )
+
+            # If we got fewer than batch_size, we've exhausted the day
+            if batch_fetched < batch_size:
+                logger.info(
+                    f"Partial batch received ({batch_fetched} < {batch_size}), day complete"
                 )
-                producer.publish(
-                    topic=TOPIC_MAIL_RAW,
-                    key=msg.message_id,
-                    value=event,
-                    headers={"provider": "gmail", "tenant_id": tenant_id, "alias": alias},
-                )
-                result.messages_published += 1
+                break
 
-            gmail.apply_alias_label(msg.message_id, alias)
-            result.messages_post_processed += 1
+        logger.info(
+            f"Gmail backfill complete for {query_date}: "
+            f"{total_fetched} fetched, {total_stored} stored, "
+            f"{total_published} published, {total_labeled} labeled"
+        )
 
-        except Exception as e:
-            result.errors.append(f"Message {msg_id}: {e}")
-            logger.exception("Failed to process Gmail backfill message")
+    finally:
+        if producer:
+            producer.close()
 
-    if producer:
-        producer.flush()
-
-    logger.info(
-        "Gmail backfill complete: %d fetched, %d stored, %d published, %d labeled",
-        result.messages_fetched,
-        result.messages_stored,
-        result.messages_published,
-        result.messages_post_processed,
-    )
-    return result
+    return {
+        "account_id": account_id,
+        "alias": alias,
+        "date": str(query_date),
+        "messages_fetched": total_fetched,
+        "messages_stored": total_stored,
+        "messages_published": total_published,
+        "messages_labeled": total_labeled,
+        "batches_processed": batch_count,
+        "errors": errors,
+    }
 
 
-def process_imap_backfill(
+def imap_backfill_day_task(
+    execution_date: datetime,
     tenant_id: str,
     account_id: str,
     alias: str,
-    source_folder: str,
-    start_date: datetime,
-    end_date: datetime,
-    limit_per_run: int = 100,
-) -> SyncResult:
+    source_folder: str = "INBOX",
+    batch_size: int = 100,
+    max_batches: int | None = None,
+) -> dict[str, Any]:
     """
-    Backfill IMAP messages from a folder.
+    Process ALL IMAP messages for a single day.
 
-    For IMAP, we can't easily query by date, so we process all unprocessed
-    messages (those still in source_folder that haven't been moved).
-    The date range is for logging/metadata purposes.
+    Loops internally until no more messages remain for the day.
+    Idempotency: Messages are moved to target folder after processing.
+
+    Args:
+        execution_date: The day to process (from Airflow)
+        tenant_id: Tenant identifier
+        account_id: Account identifier
+        alias: Folder alias (e.g., 'inbox')
+        source_folder: Source IMAP folder (default: INBOX)
+        batch_size: Messages per loop iteration (default: 100)
+        max_batches: Maximum batches to process (None = unlimited)
+
+    Returns:
+        Summary dict with counts and any errors
     """
     from lattice_kafka import KafkaProducer, KafkaProducerConfig
     from lattice_kafka.producer import TOPIC_MAIL_RAW
@@ -601,15 +681,11 @@ def process_imap_backfill(
     from lattice_storage import ObjectStore, ObjectStoreConfig
     from lattice_storage.object_store import build_message_key
 
-    result = SyncResult(
-        account_id=account_id,
-        alias=alias,
-        messages_fetched=0,
-        messages_stored=0,
-        messages_published=0,
-        messages_post_processed=0,
-        errors=[],
-        watermark_updated=False,
+    query_date = execution_date.date()
+    next_date = query_date + timedelta(days=1)
+
+    logger.info(
+        f"IMAP backfill starting for {query_date} (account: {account_id}, folder: {source_folder})"
     )
 
     # Initialize services
@@ -620,6 +696,7 @@ def process_imap_backfill(
     kafka_config = KafkaProducerConfig.from_env()
     producer = KafkaProducer(kafka_config) if kafka_config.bootstrap_servers else None
 
+    # Initialize IMAP connector
     imap_config = ImapConfig(
         host=get_env("IMAP_HOST"),
         port=int(get_env("IMAP_PORT", "993")),
@@ -627,96 +704,168 @@ def process_imap_backfill(
         password=get_env("IMAP_PASSWORD"),
     )
 
-    with ImapConnector(imap_config) as imap:
-        # List all messages in source folder (they're unprocessed)
-        uids, uidvalidity = imap.list_uids_since(source_folder, 0, limit=limit_per_run)
+    # Target folder for processed messages
+    target_folder = f"Lattice/{alias}"
+
+    # Counters
+    total_fetched = 0
+    total_stored = 0
+    total_published = 0
+    total_moved = 0
+    errors = []
+    batch_count = 0
+
+    try:
+        with ImapConnector(imap_config) as imap:
+            while True:
+                # Check batch limit
+                if max_batches is not None and batch_count >= max_batches:
+                    logger.info(f"Reached max batches limit: {max_batches}")
+                    break
+
+                # Search for messages in date range (from source folder only)
+                # IMAP date format: DD-Mon-YYYY
+                since_str = query_date.strftime("%d-%b-%Y")
+                before_str = next_date.strftime("%d-%b-%Y")
+
+                # Select folder and search
+                imap.select_folder(source_folder)
+                conn = imap._ensure_connected()
+                search_criteria = f"(SINCE {since_str} BEFORE {before_str})"
+                status, data = conn.uid("search", None, search_criteria)
+
+                if status != "OK":
+                    logger.error(f"IMAP search failed: {status}")
+                    break
+
+                uids_bytes = data[0].split() if data[0] else []
+                uids = [int(u) for u in uids_bytes][:batch_size]
+
+                if not uids:
+                    logger.info(f"No more messages for {query_date} in {source_folder}")
+                    break
+
+                batch_fetched = len(uids)
+                batch_stored = 0
+                batch_published = 0
+                batch_moved = 0
+
+                for uid in uids:
+                    try:
+                        # 1. Fetch full message
+                        msg = imap.fetch_message(source_folder, uid)
+
+                        # 2. Store to object storage
+                        key = build_message_key(
+                            tenant_id=tenant_id,
+                            account_id=account_id,
+                            alias=alias,
+                            provider="imap",
+                            provider_message_id=msg.provider_message_id,
+                        )
+                        uri = object_store.put_bytes(
+                            key=key,
+                            data=msg.raw_bytes,
+                            content_type="message/rfc822",
+                        )
+                        batch_stored += 1
+
+                        # 3. Extract attachment metadata
+                        attachments = imap.extract_attachments_metadata(msg.raw_bytes, uid)
+                        manifest = [
+                            AttachmentManifestItem(
+                                attachment_id=a.attachment_id,
+                                filename=a.filename,
+                                content_type=a.content_type,
+                                size_bytes=a.size_bytes,
+                            )
+                            for a in attachments
+                        ]
+
+                        # 4. Publish to Kafka (if configured)
+                        if producer:
+                            event = build_raw_event(
+                                tenant_id=tenant_id,
+                                account_id=account_id,
+                                alias=alias,
+                                provider="imap",
+                                provider_message_id=msg.provider_message_id,
+                                raw_bytes=msg.raw_bytes,
+                                raw_object_uri=uri,
+                                received_at=msg.internal_date,
+                                scope=source_folder,
+                                imap_metadata={
+                                    "uid": msg.uid,
+                                    "uidvalidity": msg.uidvalidity,
+                                    "folder": msg.folder,
+                                    "flags": msg.flags,
+                                    "backfill": True,
+                                },
+                                attachments_manifest=manifest,
+                            )
+                            producer.publish(
+                                topic=TOPIC_MAIL_RAW,
+                                key=msg.provider_message_id,
+                                value=event,
+                                headers={
+                                    "provider": "imap",
+                                    "tenant_id": tenant_id,
+                                    "alias": alias,
+                                },
+                            )
+                            batch_published += 1
+
+                        # 5. Move to target folder (idempotency marker)
+                        imap.move_to_alias_folder(source_folder, uid, target_folder)
+                        batch_moved += 1
+
+                    except Exception as e:
+                        error_msg = f"Error processing message UID {uid}: {str(e)}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+
+                # Flush Kafka batch
+                if producer:
+                    producer.flush()
+
+                total_fetched += batch_fetched
+                total_stored += batch_stored
+                total_published += batch_published
+                total_moved += batch_moved
+                batch_count += 1
+
+                logger.info(
+                    f"Batch {batch_count} complete: "
+                    f"{batch_fetched} fetched, {batch_stored} stored, "
+                    f"{batch_published} published, {batch_moved} moved"
+                )
+
+                # If we got fewer than batch_size, we've exhausted the day
+                if batch_fetched < batch_size:
+                    logger.info(
+                        f"Partial batch received ({batch_fetched} < {batch_size}), day complete"
+                    )
+                    break
+
         logger.info(
-            "IMAP backfill: found %d messages in %s (date range: %s to %s)",
-            len(uids),
-            source_folder,
-            start_date.isoformat(),
-            end_date.isoformat(),
+            f"IMAP backfill complete for {query_date}: "
+            f"{total_fetched} fetched, {total_stored} stored, "
+            f"{total_published} published, {total_moved} moved"
         )
 
-        for uid in uids:
-            try:
-                msg = imap.fetch_message(source_folder, uid)
-
-                # Check if message is within date range
-                if msg.internal_date < start_date or msg.internal_date > end_date:
-                    logger.debug("Message outside date range, skipping")
-                    continue
-
-                result.messages_fetched += 1
-
-                key = build_message_key(
-                    tenant_id=tenant_id,
-                    account_id=account_id,
-                    alias=alias,
-                    provider="imap",
-                    provider_message_id=msg.provider_message_id,
-                )
-                uri = object_store.put_bytes(
-                    key=key,
-                    data=msg.raw_bytes,
-                    content_type="message/rfc822",
-                )
-                result.messages_stored += 1
-
-                attachments = imap.extract_attachments_metadata(msg.raw_bytes, uid)
-                manifest = [
-                    AttachmentManifestItem(
-                        attachment_id=a.attachment_id,
-                        filename=a.filename,
-                        content_type=a.content_type,
-                        size_bytes=a.size_bytes,
-                    )
-                    for a in attachments
-                ]
-
-                if producer:
-                    event = build_raw_event(
-                        tenant_id=tenant_id,
-                        account_id=account_id,
-                        alias=alias,
-                        provider="imap",
-                        provider_message_id=msg.provider_message_id,
-                        raw_bytes=msg.raw_bytes,
-                        raw_object_uri=uri,
-                        received_at=msg.internal_date,
-                        scope=source_folder,
-                        imap_metadata={
-                            "uid": msg.uid,
-                            "uidvalidity": msg.uidvalidity,
-                            "folder": msg.folder,
-                            "flags": msg.flags,
-                            "backfill": True,
-                        },
-                        attachments_manifest=manifest,
-                    )
-                    producer.publish(
-                        topic=TOPIC_MAIL_RAW,
-                        key=msg.provider_message_id,
-                        value=event,
-                        headers={"provider": "imap", "tenant_id": tenant_id, "alias": alias},
-                    )
-                    result.messages_published += 1
-
-                imap.move_to_alias_folder(source_folder, uid, alias)
-                result.messages_post_processed += 1
-
-            except Exception as e:
-                result.errors.append(f"UID {uid}: {e}")
-                logger.exception("Failed to process IMAP backfill message")
-
+    finally:
         if producer:
-            producer.flush()
+            producer.close()
 
-    logger.info(
-        "IMAP backfill complete: %d fetched, %d stored, %d published, %d moved",
-        result.messages_fetched,
-        result.messages_stored,
-        result.messages_published,
-        result.messages_post_processed,
-    )
-    return result
+    return {
+        "account_id": account_id,
+        "alias": alias,
+        "source_folder": source_folder,
+        "date": str(query_date),
+        "messages_fetched": total_fetched,
+        "messages_stored": total_stored,
+        "messages_published": total_published,
+        "messages_moved": total_moved,
+        "batches_processed": batch_count,
+        "errors": errors,
+    }

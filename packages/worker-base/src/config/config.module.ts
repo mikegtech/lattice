@@ -43,6 +43,20 @@ const workerEnvSchema = z.object({
 
 	// Optional secondary output topics (worker-specific)
 	KAFKA_TOPIC_ATTACHMENT: z.string().optional(),
+	KAFKA_TOPIC_AUDIT: z.string().optional(),
+
+	// Additional named topics (JSON map for arbitrary topics)
+	KAFKA_TOPICS_ADDITIONAL: z
+		.string()
+		.optional()
+		.transform((v) => {
+			if (!v) return undefined;
+			try {
+				return JSON.parse(v) as Record<string, string>;
+			} catch {
+				return undefined;
+			}
+		}),
 
 	// Database
 	DATABASE_URL: z.string().optional(),
@@ -98,6 +112,8 @@ export interface WorkerConfig {
 		topicOut?: string;
 		topicDlq: string;
 		topicAttachment?: string; // Optional: for workers that emit attachment events
+		topicAudit?: string; // Optional: for workers that emit audit events
+		additionalTopics: Record<string, string>; // Additional named topics
 		maxRetries: number;
 		retryBackoffMs: number;
 	};
@@ -141,12 +157,27 @@ function validateAndTransform(): WorkerConfig {
 				ssl: parsed.KAFKA_SSL,
 				topicIn: parsed.KAFKA_TOPIC_IN,
 				topicDlq: parsed.KAFKA_TOPIC_DLQ,
+				additionalTopics: {},
 				maxRetries: parsed.KAFKA_MAX_RETRIES,
 				retryBackoffMs: parsed.KAFKA_RETRY_BACKOFF_MS,
 			};
 			if (parsed.KAFKA_TOPIC_OUT) kafkaConfig.topicOut = parsed.KAFKA_TOPIC_OUT;
-			if (parsed.KAFKA_TOPIC_ATTACHMENT)
+			if (parsed.KAFKA_TOPIC_ATTACHMENT) {
 				kafkaConfig.topicAttachment = parsed.KAFKA_TOPIC_ATTACHMENT;
+				kafkaConfig.additionalTopics["attachment"] =
+					parsed.KAFKA_TOPIC_ATTACHMENT;
+			}
+			if (parsed.KAFKA_TOPIC_AUDIT) {
+				kafkaConfig.topicAudit = parsed.KAFKA_TOPIC_AUDIT;
+				kafkaConfig.additionalTopics["audit"] = parsed.KAFKA_TOPIC_AUDIT;
+			}
+			// Merge with JSON map if provided (allows arbitrary topics)
+			if (parsed.KAFKA_TOPICS_ADDITIONAL) {
+				kafkaConfig.additionalTopics = {
+					...kafkaConfig.additionalTopics,
+					...parsed.KAFKA_TOPICS_ADDITIONAL,
+				};
+			}
 			if (parsed.KAFKA_SASL_USERNAME && parsed.KAFKA_SASL_PASSWORD) {
 				kafkaConfig.sasl = {
 					mechanism: parsed.KAFKA_SASL_MECHANISM,
