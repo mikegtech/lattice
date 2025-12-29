@@ -41,6 +41,9 @@ const workerEnvSchema = z.object({
 	KAFKA_TOPIC_OUT: z.string().optional(),
 	KAFKA_TOPIC_DLQ: z.string(),
 
+	// Optional secondary output topics (worker-specific)
+	KAFKA_TOPIC_ATTACHMENT: z.string().optional(),
+
 	// Database
 	DATABASE_URL: z.string().optional(),
 
@@ -94,6 +97,7 @@ export interface WorkerConfig {
 		topicIn: string;
 		topicOut?: string;
 		topicDlq: string;
+		topicAttachment?: string; // Optional: for workers that emit attachment events
 		maxRetries: number;
 		retryBackoffMs: number;
 	};
@@ -141,6 +145,8 @@ function validateAndTransform(): WorkerConfig {
 				retryBackoffMs: parsed.KAFKA_RETRY_BACKOFF_MS,
 			};
 			if (parsed.KAFKA_TOPIC_OUT) kafkaConfig.topicOut = parsed.KAFKA_TOPIC_OUT;
+			if (parsed.KAFKA_TOPIC_ATTACHMENT)
+				kafkaConfig.topicAttachment = parsed.KAFKA_TOPIC_ATTACHMENT;
 			if (parsed.KAFKA_SASL_USERNAME && parsed.KAFKA_SASL_PASSWORD) {
 				kafkaConfig.sasl = {
 					mechanism: parsed.KAFKA_SASL_MECHANISM,
