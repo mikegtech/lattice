@@ -6,6 +6,7 @@
 #   - mail-chunker: Chunks parsed emails for embedding
 #   - mail-embedder: Generates embeddings for chunks and stores in Postgres
 #   - mail-upserter: Upserts embedding vectors to Milvus
+#   - mail-extractor: Extracts text from PDF/DOCX attachments
 #   - mail-deleter: Handles email lifecycle deletions (vectors, postgres, storage)
 #   - audit-writer: Writes audit events to Postgres (terminal consumer)
 
@@ -216,6 +217,46 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3103:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail Extractor Worker
+  # Consumes: lattice.mail.attachment.v1
+  # Produces: lattice.mail.attachment.extracted.v1
+  # ==========================================================================
+  mail-extractor:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-extractor/Dockerfile
+    container_name: lattice-mail-extractor
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-extractor"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-extractor
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: extract
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-extractor
+      KAFKA_GROUP_ID: mail-extractor-group
+      KAFKA_TOPIC_IN: lattice.mail.attachment.v1
+      KAFKA_TOPIC_OUT: lattice.mail.attachment.extracted.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.attachment.v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3106:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s

@@ -12,10 +12,10 @@ export interface MailRawPayload {
 	history_id?: string;
 	/** Gmail label IDs */
 	label_ids?: string[];
-	/** Base64url-encoded RFC822/MIME message */
-	raw_payload: string;
-	/** Object storage URI for large payloads */
-	raw_object_uri?: string;
+	/** Base64url-encoded RFC822/MIME message (optional for claim check pattern) */
+	raw_payload?: string;
+	/** Object storage URI (always set, used for claim check when raw_payload is omitted) */
+	raw_object_uri: string;
 	/** Size of raw payload in bytes */
 	size_bytes: number;
 	/** Gmail internal date */
@@ -332,6 +332,60 @@ export interface MailDeleteCompletedPayload {
 	completed_at: string;
 	/** Duration in milliseconds */
 	duration_ms: number;
+}
+
+/**
+ * Attachment extraction request payload (input to mail-extractor)
+ */
+export interface AttachmentExtractRequest {
+	/** Lattice email ID */
+	email_id: string;
+	/** Attachment ID */
+	attachment_id: string;
+	/** S3 URI where attachment is stored */
+	storage_uri: string;
+	/** MIME type of attachment */
+	mime_type: string;
+	/** Original filename */
+	filename: string;
+	/** Attachment size in bytes */
+	size_bytes: number;
+}
+
+/**
+ * Attachment extraction result payload (output from mail-extractor)
+ */
+export interface AttachmentExtractResult {
+	/** Lattice email ID */
+	email_id: string;
+	/** Attachment ID */
+	attachment_id: string;
+	/** Extraction status */
+	extraction_status: "success" | "failed" | "unsupported";
+	/** Character count of extracted text (0 if failed) */
+	extracted_text_length: number;
+	/** Error message if extraction failed */
+	extraction_error?: string;
+	/** When extraction completed */
+	extracted_at: string;
+}
+
+/**
+ * Extractable attachment info returned from parser
+ */
+export interface ExtractableAttachment {
+	/** Lattice email ID */
+	email_id: string;
+	/** Attachment ID */
+	attachment_id: string;
+	/** S3 URI where attachment is stored */
+	storage_uri: string;
+	/** MIME type */
+	mime_type: string;
+	/** Original filename */
+	filename: string;
+	/** Size in bytes */
+	size_bytes: number;
 }
 
 /**

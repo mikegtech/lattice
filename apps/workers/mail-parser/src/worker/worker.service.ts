@@ -14,7 +14,7 @@ import type {
 	EmailRecord,
 	EmailRepository,
 } from "../db/email.repository.js";
-import type { ParserService } from "./parser.service.js";
+import type { EnvelopeContext, ParserService } from "./parser.service.js";
 
 @Injectable()
 export class MailParserService extends BaseWorkerService<
@@ -59,11 +59,22 @@ export class MailParserService extends BaseWorkerService<
 		this.telemetry.increment("messages.received", 1, { stage: "parse" });
 
 		try {
-			// Get envelope data from the Kafka message
-			// Note: In the base worker, we pass the full envelope's tenant_id and account_id
-			// For now, we'll extract these from the payload/topic context
-			const accountId = payload.email_id.split("-")[0] ?? "unknown"; // Will be improved
-			const tenantId = "default";
+			// Get envelope data from the Kafka message context
+			const tenantId = context.envelope?.tenant_id ?? "default";
+			const accountId =
+				context.envelope?.account_id ??
+				payload.email_id.split("-")[0] ??
+				"unknown";
+			const alias = context.envelope?.alias ?? "inbox";
+			const provider = context.envelope?.provider ?? "gmail";
+
+			// Build envelope context for parser
+			const envelopeContext: EnvelopeContext = {
+				tenant_id: tenantId,
+				account_id: accountId,
+				alias,
+				provider,
+			};
 
 			// Check for existing email
 			const existing = await this.emailRepository.findByProviderMessageId(
@@ -71,9 +82,12 @@ export class MailParserService extends BaseWorkerService<
 				payload.provider_message_id,
 			);
 
-			// Parse the email
-			const { payload: parsedPayload, contentHash } =
-				await this.parser.parse(payload);
+			// Parse the email (includes claim check and attachment storage)
+			const {
+				payload: parsedPayload,
+				contentHash,
+				extractableAttachments,
+			} = await this.parser.parse(payload, envelopeContext);
 
 			// Idempotency check
 			if (existing && existing.content_hash === contentHash) {
@@ -145,10 +159,49 @@ export class MailParserService extends BaseWorkerService<
 				stage: "parse",
 			});
 
+			// Emit attachment extraction requests for extractable attachments
+			if (extractableAttachments.length > 0) {
+				for (const att of extractableAttachments) {
+					await this.kafka.produce(
+						"lattice.mail.attachment.v1",
+						{
+							email_id: att.email_id,
+							attachment_id: att.attachment_id,
+							storage_uri: att.storage_uri,
+							mime_type: att.mime_type,
+							filename: att.filename,
+							size_bytes: att.size_bytes,
+						},
+						{
+							tenantId,
+							accountId,
+							domain: "mail",
+							stage: "parse",
+							schemaVersion: "v1",
+						},
+					);
+
+					this.logger.debug("Emitted attachment extraction request", {
+						email_id: att.email_id,
+						attachment_id: att.attachment_id,
+						mime_type: att.mime_type,
+					});
+				}
+
+				this.telemetry.increment(
+					"attachments.extraction_requested",
+					extractableAttachments.length,
+					{
+						stage: "parse",
+					},
+				);
+			}
+
 			this.telemetry.increment("messages.success", 1, { stage: "parse" });
 			this.logger.info("Email parsed and stored", {
 				...logContext,
 				attachment_count: parsedPayload.attachments.length,
+				extractable_count: extractableAttachments.length,
 				content_hash: contentHash,
 				is_update: !!existing,
 			} as Record<string, unknown>);

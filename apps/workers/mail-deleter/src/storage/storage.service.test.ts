@@ -19,6 +19,9 @@ vi.mock("@aws-sdk/client-s3", () => {
 			type: "DeleteObjectsCommand",
 			...params,
 		})),
+		ChecksumAlgorithm: {
+			CRC32: "CRC32",
+		},
 	};
 });
 

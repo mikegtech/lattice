@@ -66,4 +66,4 @@ export type { ErrorClassification } from "./errors/error-classifier.js";
 // Base worker service
 export { BaseWorkerService } from "./kafka/base-worker.service.js";
 export type { WorkerHandler } from "./kafka/base-worker.service.js";
-export type { WorkerContext } from "./kafka/types.js";
+export type { WorkerContext, EnvelopeContext } from "./kafka/types.js";
