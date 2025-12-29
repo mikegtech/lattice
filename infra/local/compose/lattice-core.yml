@@ -119,7 +119,10 @@ services:
   # Airflow - Orchestration
   # ==========================================================================
   airflow-init:
-    image: apache/airflow:2.8.0-python3.11
+    build:
+      context: ../../../python
+      dockerfile: Dockerfile
+    image: lattice-airflow:local
     container_name: lattice-airflow-init
     entrypoint: /bin/bash
     command:
@@ -145,7 +148,7 @@ services:
       - lattice-network
 
   airflow-webserver:
-    image: apache/airflow:2.8.0-python3.11
+    image: lattice-airflow:local
     container_name: lattice-airflow-webserver
     command: webserver
     ports:
@@ -176,7 +179,7 @@ services:
       - lattice-network
 
   airflow-scheduler:
-    image: apache/airflow:2.8.0-python3.11
+    image: lattice-airflow:local
     container_name: lattice-airflow-scheduler
     command: scheduler
     environment:
@@ -209,6 +212,11 @@ services:
       GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
       GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN:-}
       GMAIL_USER_EMAIL: ${GMAIL_USER_EMAIL:-me}
+      # IMAP config for DAG tasks
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USERNAME: ${IMAP_USERNAME:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
     volumes:
       - ../../../python/dags:/opt/airflow/dags:ro
       - ../../../python/libs:/opt/airflow/libs:ro

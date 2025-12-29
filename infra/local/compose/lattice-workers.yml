@@ -7,6 +7,7 @@
 #   - mail-embedder: Generates embeddings for chunks and stores in Postgres
 #   - mail-upserter: Upserts embedding vectors to Milvus
 #   - mail-extractor: Extracts text from PDF/DOCX attachments
+#   - attachment-chunker: Chunks extracted attachment text for embedding
 #   - mail-deleter: Handles email lifecycle deletions (vectors, postgres, storage)
 #   - audit-writer: Writes audit events to Postgres (terminal consumer)
 
@@ -258,6 +259,52 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3106:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Attachment Chunker Worker
+  # Consumes: lattice.mail.attachment.extracted.v1
+  # Produces: lattice.mail.chunk.v1
+  # ==========================================================================
+  attachment-chunker:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/attachment-chunker/Dockerfile
+    container_name: lattice-attachment-chunker
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-attachment-chunker"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-attachment-chunker
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: chunk
+      # Kafka topics
+      KAFKA_CLIENT_ID: attachment-chunker
+      KAFKA_GROUP_ID: attachment-chunker-group
+      KAFKA_TOPIC_IN: lattice.mail.attachment.extracted.v1
+      KAFKA_TOPIC_OUT: lattice.mail.chunk.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.attachment.chunk.v1
+      # Chunking config
+      CHUNK_TARGET_TOKENS: "400"
+      CHUNK_OVERLAP_TOKENS: "50"
+      CHUNK_MAX_TOKENS: "512"
+      CHUNKING_VERSION: v1
+      NORMALIZATION_VERSION: v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3107:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s
