@@ -49,7 +49,7 @@ services:
   # ==========================================================================
   # Mail Parser Worker
   # Consumes: lattice.mail.raw.v1
-  # Produces: lattice.mail.parse.v1
+  # Produces: lattice.mail.parse.v1, lattice.mail.attachment.v1
   # ==========================================================================
   mail-parser:
     build:
@@ -59,7 +59,7 @@ services:
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-parser"}]'
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-parser
       DD_VERSION: "0.1.0"
@@ -71,6 +71,7 @@ services:
       KAFKA_GROUP_ID: mail-parser-group
       KAFKA_TOPIC_IN: lattice.mail.raw.v1
       KAFKA_TOPIC_OUT: lattice.mail.parse.v1
+      KAFKA_TOPIC_ATTACHMENT: lattice.mail.attachment.v1
       KAFKA_TOPIC_DLQ: lattice.dlq.mail.parse.v1
       # Health
       HEALTH_PORT: 3000

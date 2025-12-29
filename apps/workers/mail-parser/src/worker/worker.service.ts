@@ -161,9 +161,12 @@ export class MailParserService extends BaseWorkerService<
 
 			// Emit attachment extraction requests for extractable attachments
 			if (extractableAttachments.length > 0) {
+				// Get attachment topic from config (with sensible fallback)
+				const attachmentTopic =
+					this.config.kafka.topicAttachment ?? "lattice.mail.attachment.v1";
 				for (const att of extractableAttachments) {
 					await this.kafka.produce(
-						"lattice.mail.attachment.v1",
+						attachmentTopic,
 						{
 							email_id: att.email_id,
 							attachment_id: att.attachment_id,
@@ -176,7 +179,7 @@ export class MailParserService extends BaseWorkerService<
 							tenantId,
 							accountId,
 							domain: "mail",
-							stage: "parse",
+							stage: "extract", // Destined for mail-extractor worker
 							schemaVersion: "v1",
 						},
 					);

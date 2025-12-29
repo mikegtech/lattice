@@ -21,6 +21,7 @@ When you see an error in Datadog:
 | `lattice-worker-mail-chunker` | mail | chunk | `lattice.mail.parse.v1` | `lattice.mail.chunk.v1` |
 | `lattice-worker-mail-embedder` | mail | embed | `lattice.mail.chunk.v1` | `lattice.mail.embed.v1` |
 | `lattice-worker-mail-upserter` | mail | upsert | `lattice.mail.embed.v1` | `lattice.mail.upsert.v1` |
+| `lattice-worker-mail-extractor` | mail | extract | `lattice.mail.attachment.v1` | `lattice.mail.attachment.extracted.v1` |
 | `lattice-worker-mail-deleter` | mail | delete | `lattice.mail.delete.v1` | `lattice.mail.delete.completed.v1` |
 | `lattice-worker-audit-writer` | audit | audit | `lattice.audit.events.v1` | *(terminal)* |
 
@@ -40,7 +41,8 @@ When you see an error in Datadog:
 1. Consume raw RFC822 email from object storage
 2. Parse headers, body, attachments
 3. Extract metadata (from, to, subject, date)
-4. Publish structured email to output topic
+4. produces attachment metadata (IDs + storage URIs) and/or emits extraction requests
+5. Publish structured email to output topic
 
 ### Producers (who sends to this worker)
 - Airflow DAGs: `lattice__gmail_sync_incremental`, `lattice__imap_sync_incremental`
@@ -152,6 +154,45 @@ When you see an error in Datadog:
 ### Related Docs
 - Schema: `contracts/kafka/mail/upsert/v1.json`
 - Runbook: `docs/runbooks/local-development.md`
+
+---
+
+## mail-extractor
+
+**Service**: `lattice-worker-mail-extractor`
+**Location**: `apps/workers/mail-extractor/`
+
+### Topics
+- **Input**: `lattice.mail.attachment.v1`
+- **Output**: `lattice.mail.attachment.extracted.v1`
+- **DLQ**: `lattice.dlq.mail.attachment.v1`
+
+> Note: These topic names and DLQ wiring come from `infra/local/compose/lattice-workers.yml`. :contentReference[oaicite:3]{index=3}
+
+### Responsibilities
+1. Consume attachment extraction requests (email_id + attachment_id + storage_uri + mime_type + filename + size_bytes)
+2. Fetch attachment content from object storage (MinIO/S3) using `storage_uri`
+3. Extract text for supported types (e.g., PDF/DOCX)
+4. Publish extraction result with status + extracted_text_length (and error detail if failed/unsupported)
+
+The contract types for the request/response payloads are:
+- `AttachmentExtractRequest` (input) :contentReference[oaicite:4]{index=4}
+- `AttachmentExtractResult` (output) :contentReference[oaicite:5]{index=5}
+
+### Producers (who sends to this worker)
+- The producer must emit `AttachmentExtractRequest` payloads to `lattice.mail.attachment.v1`. (Keep this explicit in your pipeline docs as you finalize the producer behavior; the worker wiring itself is already in place.) :contentReference[oaicite:6]{index=6} :contentReference[oaicite:7]{index=7}
+
+### Common Errors
+| Error Code | Cause | Fix |
+|------------|-------|-----|
+| `STORAGE_ERROR` | Can't fetch attachment from MinIO/S3 | Validate `storage_uri`, MinIO creds/endpoint, bucket/object existence |
+| `PARSE_ERROR` | Request payload invalid | Validate against `AttachmentExtractRequest` fields |
+| `ENVELOPE_INVALID` | Missing Lattice envelope wrapper | Fix producer envelope |
+| `TIMEOUT` | Extraction took too long | Check file size/type; adjust timeouts; add limits |
+| `DUPLICATE_SKIP` | Already extracted (idempotent) | Expected (treat as success) |
+
+### Related Docs
+- Contract types: `packages/core-contracts/src/mail.ts` (Attachment extraction interfaces) :contentReference[oaicite:8]{index=8}
 
 ---
 
