@@ -1,4 +1,5 @@
 import {
+	ChecksumAlgorithm,
 	DeleteObjectCommand,
 	DeleteObjectsCommand,
 	type ObjectIdentifier,
@@ -173,6 +174,8 @@ export class StorageService implements OnModuleDestroy {
 								Objects: chunk,
 								Quiet: false,
 							},
+							// Required by MinIO for Content-MD5 header
+							ChecksumAlgorithm: ChecksumAlgorithm.CRC32,
 						}),
 					);
 

@@ -12,17 +12,28 @@ export interface PiiInfo {
 	pii_fields?: string[];
 }
 
+export interface ProviderSource {
+	provider: "gmail" | "imap";
+	account_id: string;
+	alias: string;
+	provider_message_id?: string;
+	provider_thread_id?: string;
+	scope?: string;
+}
+
 export interface Envelope<T = unknown> {
 	message_id: string;
 	trace_id?: string;
 	span_id?: string;
 	tenant_id: string;
 	account_id: string;
+	alias?: string;
 	domain: "mail" | "calendar" | "drive" | "contacts";
 	stage: "raw" | "parse" | "chunk" | "embed" | "upsert" | "delete" | "audit";
 	schema_version: string;
 	created_at: string;
 	source: EnvelopeSource;
+	provider_source?: ProviderSource;
 	data_classification: "public" | "internal" | "confidential" | "restricted";
 	pii: PiiInfo;
 	payload: T;

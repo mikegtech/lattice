@@ -1,0 +1,45 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.mail.attachment.extracted.v1",
+	"title": "Attachment Extraction Complete v1",
+	"description": "Notification that attachment text extraction is complete",
+	"type": "object",
+	"properties": {
+		"email_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice email ID"
+		},
+		"attachment_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice attachment ID"
+		},
+		"extraction_status": {
+			"type": "string",
+			"enum": ["success", "failed", "unsupported"],
+			"description": "Result of extraction attempt"
+		},
+		"extracted_text_length": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Character count of extracted text (0 if failed)"
+		},
+		"extraction_error": {
+			"type": "string",
+			"description": "Error message if extraction failed"
+		},
+		"extracted_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When extraction completed"
+		}
+	},
+	"required": [
+		"email_id",
+		"attachment_id",
+		"extraction_status",
+		"extracted_at"
+	],
+	"additionalProperties": false
+}

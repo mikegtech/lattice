@@ -4,23 +4,75 @@ import type {
 	EmailAddress,
 	EmailBody,
 	EmailHeaders,
+	ExtractableAttachment,
 	MailParsePayload,
 	MailRawPayload,
 } from "@lattice/core-contracts";
-import { Injectable } from "@nestjs/common";
+import { LOGGER, type LoggerService } from "@lattice/worker-base";
+import { Inject, Injectable } from "@nestjs/common";
 import { type AddressObject, simpleParser } from "mailparser";
 import { v4 as uuidv4 } from "uuid";
+import {
+	STORAGE_SERVICE,
+	type StorageService,
+} from "../storage/storage.service.js";
 
 export interface ParseResult {
 	payload: MailParsePayload;
 	contentHash: string;
+	extractableAttachments: ExtractableAttachment[];
 }
+
+export interface EnvelopeContext {
+	tenant_id: string;
+	account_id: string;
+	alias: string;
+	provider: string;
+}
+
+// MIME types that support text extraction
+const EXTRACTABLE_MIME_TYPES = [
+	"application/pdf",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"text/plain",
+	"text/csv",
+	"text/markdown",
+];
 
 @Injectable()
 export class ParserService {
-	async parse(raw: MailRawPayload): Promise<ParseResult> {
-		// Decode base64url to buffer
-		const buffer = Buffer.from(raw.raw_payload, "base64url");
+	constructor(
+		@Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+		@Inject(LOGGER) private readonly logger: LoggerService,
+	) {}
+
+	async parse(
+		raw: MailRawPayload,
+		envelope: EnvelopeContext,
+	): Promise<ParseResult> {
+		// ===== CLAIM CHECK PATTERN =====
+		let buffer: Buffer;
+
+		if (raw.raw_payload) {
+			// Fast path: inline payload (email ≤ 256 KB)
+			buffer = Buffer.from(raw.raw_payload, "base64url");
+			this.logger.debug("Using inline payload", {
+				email_id: raw.email_id,
+				size_bytes: buffer.length,
+			});
+		} else if (raw.raw_object_uri) {
+			// Claim check: fetch from object storage (email > 256 KB)
+			buffer = await this.storage.getBytes(raw.raw_object_uri);
+			this.logger.debug("Fetched from storage", {
+				email_id: raw.email_id,
+				uri: raw.raw_object_uri,
+				size_bytes: buffer.length,
+			});
+		} else {
+			throw new Error(
+				`No raw_payload or raw_object_uri provided for email ${raw.email_id}`,
+			);
+		}
 
 		// Parse the email
 		const parsed = await simpleParser(buffer);
@@ -49,18 +101,69 @@ export class ParserService {
 			from.address,
 		);
 
-		// Extract attachments
-		const attachments: Attachment[] = (parsed.attachments ?? []).map((att) => {
-			const attachment: Attachment = {
-				attachment_id: uuidv4(),
-				filename: att.filename ?? "unnamed",
-				mime_type: att.contentType ?? "application/octet-stream",
-				size_bytes: att.size ?? 0,
-				content_hash: this.calculateHash(att.content),
-				extraction_status: "pending",
-			};
-			return attachment;
-		});
+		// ===== ATTACHMENT STORAGE =====
+		const attachments: Attachment[] = [];
+		const extractableAttachments: ExtractableAttachment[] = [];
+
+		for (const att of parsed.attachments ?? []) {
+			const attachmentId = uuidv4();
+			const contentHashAtt = this.calculateHash(att.content);
+			const mimeType = att.contentType ?? "application/octet-stream";
+			const filename = att.filename ?? "unnamed";
+			const sizeBytes = att.size ?? att.content.length;
+
+			// Build storage key for attachment
+			const storageKey = this.buildAttachmentKey(
+				envelope.tenant_id,
+				envelope.account_id,
+				envelope.alias,
+				envelope.provider,
+				raw.provider_message_id,
+				attachmentId,
+				filename,
+			);
+
+			// Store attachment to object storage
+			const storageUri = await this.storage.putBytes(
+				storageKey,
+				att.content,
+				mimeType,
+			);
+
+			this.logger.debug("Stored attachment", {
+				email_id: raw.email_id,
+				attachment_id: attachmentId,
+				filename,
+				mime_type: mimeType,
+				size_bytes: sizeBytes,
+				storage_uri: storageUri,
+			});
+
+			// Determine extraction status
+			const extractionStatus = this.getExtractionStatus(mimeType);
+
+			attachments.push({
+				attachment_id: attachmentId,
+				filename,
+				mime_type: mimeType,
+				size_bytes: sizeBytes,
+				content_hash: contentHashAtt,
+				storage_uri: storageUri,
+				extraction_status: extractionStatus,
+			});
+
+			// Track extractable attachments for downstream processing
+			if (extractionStatus === "pending") {
+				extractableAttachments.push({
+					email_id: raw.email_id,
+					attachment_id: attachmentId,
+					storage_uri: storageUri,
+					mime_type: mimeType,
+					filename,
+					size_bytes: sizeBytes,
+				});
+			}
+		}
 
 		// Build headers
 		const headers: EmailHeaders = {
@@ -98,7 +201,32 @@ export class ParserService {
 			parsed_at: new Date().toISOString(),
 		};
 
-		return { payload, contentHash };
+		return { payload, contentHash, extractableAttachments };
+	}
+
+	private getExtractionStatus(
+		mimeType: string,
+	): "pending" | "success" | "failed" | "unsupported" {
+		return EXTRACTABLE_MIME_TYPES.includes(mimeType)
+			? "pending"
+			: "unsupported";
+	}
+
+	private buildAttachmentKey(
+		tenantId: string,
+		accountId: string,
+		alias: string,
+		provider: string,
+		providerMessageId: string,
+		attachmentId: string,
+		filename: string,
+	): string {
+		const safeMsgId = providerMessageId.replace(/[/:]/g, "_");
+		const safeAlias = alias.replace(/[/:]/g, "_");
+		const safeAttId = attachmentId.replace(/[/:]/g, "_");
+		const safeFilename = filename.replace(/\//g, "_");
+
+		return `tenant/${tenantId}/account/${accountId}/alias/${safeAlias}/provider/${provider}/message/${safeMsgId}/attachments/${safeAttId}/${safeFilename}`;
 	}
 
 	private extractAddress(addr: AddressObject | undefined): EmailAddress {

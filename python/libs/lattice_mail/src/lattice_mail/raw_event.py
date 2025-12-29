@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+# Claim check pattern thresholds
+INLINE_THRESHOLD_BYTES = 256 * 1024  # 256 KB - inline payload if under this
+MAX_EMAIL_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB - reject emails larger than this
+
 
 @dataclass
 class AttachmentManifestItem:
@@ -198,9 +202,20 @@ def build_raw_event(
 
     Returns:
         Complete Kafka message dict with envelope and payload
+
+    Raises:
+        ValueError: If email size exceeds MAX_EMAIL_SIZE_BYTES (25 MB)
     """
     if fetched_at is None:
         fetched_at = datetime.now(UTC)
+
+    raw_size = len(raw_bytes)
+
+    # Reject oversized emails
+    if raw_size > MAX_EMAIL_SIZE_BYTES:
+        raise ValueError(
+            f"Email size {raw_size:,} bytes exceeds maximum {MAX_EMAIL_SIZE_BYTES:,} bytes"
+        )
 
     # Generate deterministic email_id from content hash
     content_hash = hashlib.sha256(raw_bytes).hexdigest()
@@ -211,10 +226,7 @@ def build_raw_event(
         "gmail_raw" if provider == "gmail" else "rfc822"
     )
 
-    # Encode raw bytes as base64url for the parser
-    raw_payload_b64 = base64.urlsafe_b64encode(raw_bytes).decode("ascii")
-
-    # Build event
+    # Build event - raw_object_uri is ALWAYS set (provided by caller)
     event = RawMailEvent(
         provider_message_id=provider_message_id,
         email_id=email_id,
@@ -223,13 +235,17 @@ def build_raw_event(
         raw_format=raw_format,
         fetched_at=fetched_at,
         provider_thread_id=provider_thread_id,
-        raw_payload=raw_payload_b64,
-        size_bytes=len(raw_bytes),
+        size_bytes=raw_size,
         content_hash=content_hash,
         attachments_manifest=attachments_manifest or [],
         gmail_metadata=gmail_metadata,
         imap_metadata=imap_metadata,
     )
+
+    # CLAIM CHECK PATTERN: Only inline payload if under threshold
+    # For large emails (> 256 KB), parser will fetch from raw_object_uri
+    if raw_size <= INLINE_THRESHOLD_BYTES:
+        event.raw_payload = base64.urlsafe_b64encode(raw_bytes).decode("ascii")
 
     # Build envelope
     envelope = build_envelope(

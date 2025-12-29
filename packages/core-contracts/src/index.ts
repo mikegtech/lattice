@@ -17,6 +17,9 @@ export type {
 	Attachment,
 	ChunkSourceType,
 	SectionType,
+	AttachmentExtractRequest,
+	AttachmentExtractResult,
+	ExtractableAttachment,
 } from "./mail.js";
 
 // DLQ and audit payloads

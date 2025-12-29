@@ -89,6 +89,14 @@ export abstract class BaseWorkerService<TIn, TOut = void>
 			topic: message.topic,
 			partition: message.partition,
 			offset: message.offset,
+			envelope: {
+				tenant_id: message.envelope.tenant_id,
+				account_id: message.envelope.account_id,
+				alias: message.envelope.alias,
+				domain: message.envelope.domain,
+				stage: message.envelope.stage,
+				provider: message.envelope.provider_source?.provider,
+			},
 		};
 		if (message.traceId) context.traceId = message.traceId;
 		if (message.spanId) context.spanId = message.spanId;

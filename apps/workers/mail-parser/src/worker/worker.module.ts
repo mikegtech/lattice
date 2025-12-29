@@ -8,13 +8,24 @@ import {
 } from "@lattice/worker-base";
 import { Module } from "@nestjs/common";
 import { EmailRepository } from "../db/email.repository.js";
+import { StorageModule } from "../storage/storage.module.js";
+import {
+	STORAGE_SERVICE,
+	type StorageService,
+} from "../storage/storage.service.js";
 import { ParserService } from "./parser.service.js";
 import { MailParserService } from "./worker.service.js";
 
 @Module({
+	imports: [StorageModule],
 	providers: [
 		EmailRepository,
-		ParserService,
+		{
+			provide: ParserService,
+			useFactory: (storage: StorageService, logger: LoggerService) =>
+				new ParserService(storage, logger),
+			inject: [STORAGE_SERVICE, LOGGER],
+		},
 		{
 			provide: MailParserService,
 			useFactory: (
