@@ -19,6 +19,9 @@ services:
       DD_APM_ENABLED: "true"
       DD_APM_NON_LOCAL_TRAFFIC: "true"
 
+      # DogStatsD Configuration
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+
       # Logs Configuration
       DD_LOGS_ENABLED: "true"
       # Container collect all is set to false in datadog/datadog.yaml
@@ -31,7 +34,7 @@ services:
       DD_DOCKER_LABELS_AS_TAGS: '{"com.docker.compose.service":"service"}'
 
       # Hostname
-      DD_HOSTNAME: lattice-local
+      DD_HOSTNAME: lattice-${DD_ENV:-local}
 
       # Additional tags
       DD_TAGS: "team:platform cloud:local region:local"

@@ -1,6 +1,9 @@
+import { createRequire } from "module";
 import { Injectable } from "@nestjs/common";
 import type { Span, Tracer } from "dd-trace";
 import type { WorkerConfig } from "../config/config.module.js";
+
+const require = createRequire(import.meta.url);
 
 @Injectable()
 export class TelemetryService {
