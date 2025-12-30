@@ -24,6 +24,10 @@ const SUPPORTED_MIME_TYPES = new Set([
 // Maximum text length to extract (5MB of text)
 const MAX_TEXT_LENGTH = 5 * 1024 * 1024;
 
+// Minimum meaningful text length after extraction
+// Empty or near-empty extractions indicate the PDF is likely image-based or corrupted
+const MIN_MEANINGFUL_TEXT_LENGTH = 10;
+
 @Injectable()
 export class ExtractionService {
 	constructor(@Inject(LOGGER) private readonly logger: LoggerService) {}
@@ -86,7 +90,25 @@ export class ExtractionService {
 				text = text.substring(0, MAX_TEXT_LENGTH);
 			}
 
-			return { text: text.trim(), status: "success" };
+			const trimmedText = text.trim();
+
+			// FIX: Check if extraction yielded meaningful text
+			// PDFs can be scanned images or use fonts that can't be extracted
+			// In these cases, pdf-parse returns empty or near-empty strings
+			if (trimmedText.length < MIN_MEANINGFUL_TEXT_LENGTH) {
+				this.logger.warn("Extraction yielded no meaningful text", {
+					mime_type: mimeType,
+					raw_length: text.length,
+					trimmed_length: trimmedText.length,
+				});
+				return {
+					text: "",
+					status: "failed",
+					error: `No extractable text found (document may be scanned/image-based or use non-extractable fonts). Raw length: ${text.length}, trimmed length: ${trimmedText.length}`,
+				};
+			}
+
+			return { text: trimmedText, status: "success" };
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown extraction error";

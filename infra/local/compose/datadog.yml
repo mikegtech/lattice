@@ -11,7 +11,7 @@ services:
       DD_SITE: ${DD_SITE:-datadoghq.com}
 
       # Unified Service Tagging
-      DD_ENV: dev
+      DD_ENV: ${DD_ENV:-dev}
       DD_SERVICE: lattice
       DD_VERSION: "0.1.0"
 
