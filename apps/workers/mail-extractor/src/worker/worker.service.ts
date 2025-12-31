@@ -114,30 +114,52 @@ export class MailExtractorService extends BaseWorkerService<
 				},
 			);
 
+			// Map extraction status to contract-compatible status
+			// The contract only supports "success" | "failed" | "unsupported"
+			// We map "needs_ocr" to "failed" with a descriptive error for now
+			const contractStatus: "success" | "failed" | "unsupported" =
+				extractionResult.status === "needs_ocr"
+					? "failed"
+					: extractionResult.status;
+
+			// Build error message for needs_ocr cases
+			const errorMessage =
+				extractionResult.status === "needs_ocr"
+					? `OCR required: ${extractionResult.ocr_reason ?? "unknown reason"}`
+					: extractionResult.error;
+
 			// Update database
 			const startDb = Date.now();
 			await this.attachmentRepository.updateExtractedText(
 				payload.email_id,
 				payload.attachment_id,
 				extractionResult.status === "success" ? extractionResult.text : null,
-				extractionResult.status,
-				extractionResult.error,
+				contractStatus,
+				errorMessage,
 			);
 			this.telemetry.timing("db.update_ms", Date.now() - startDb, {
 				stage: "extract",
 			});
 
+			// Track OCR routing signal in telemetry
+			if (extractionResult.needs_ocr) {
+				this.telemetry.increment("extraction.needs_ocr", 1, {
+					stage: "extract",
+					ocr_reason: extractionResult.ocr_reason ?? "unknown",
+				});
+			}
+
 			// Build result
 			const result: AttachmentExtractResult = {
 				email_id: payload.email_id,
 				attachment_id: payload.attachment_id,
-				extraction_status: extractionResult.status,
+				extraction_status: contractStatus,
 				extracted_text_length: extractionResult.text.length,
 				extracted_at: new Date().toISOString(),
 			};
 
-			if (extractionResult.error) {
-				result.extraction_error = extractionResult.error;
+			if (errorMessage) {
+				result.extraction_error = errorMessage;
 			}
 
 			this.telemetry.increment("messages.success", 1, {
@@ -148,7 +170,10 @@ export class MailExtractorService extends BaseWorkerService<
 			this.logger.info("Attachment extraction complete", {
 				...logContext,
 				extraction_status: extractionResult.status,
+				contract_status: contractStatus,
 				text_length: extractionResult.text.length,
+				needs_ocr: extractionResult.needs_ocr,
+				ocr_reason: extractionResult.ocr_reason,
 			});
 
 			return { status: "success", output: result };
