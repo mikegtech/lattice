@@ -86,49 +86,7 @@ services:
     networks:
       - lattice-network
 
-  # ==========================================================================
-  # Mail OCR Normalizer Worker
-  # Consumes: lattice.ocr.result.v1
-  # Produces: lattice.mail.attachment.text.v1
-  #
-  # Bridge worker that converts OCR results back to mail attachment text
-  # events, enabling attachment-chunker to process OCR results identically
-  # to direct text extractions.
-  # ==========================================================================
-  mail-ocr-normalizer:
-    build:
-      context: ../../..
-      dockerfile: apps/workers/mail-ocr-normalizer/Dockerfile
-    container_name: lattice-mail-ocr-normalizer
-    labels:
-      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-ocr-normalizer"}]'
-    environment:
-      <<: [*common-env, *kafka-env, *storage-env, *datadog-env]
-      # Service identity
-      DD_SERVICE: lattice-worker-mail-ocr-normalizer
-      DD_VERSION: "0.1.0"
-      # Lattice context
-      LATTICE_DOMAIN: mail
-      LATTICE_STAGE: ocr-normalize
-      # Kafka topics
-      KAFKA_CLIENT_ID: mail-ocr-normalizer
-      KAFKA_GROUP_ID: mail-ocr-normalizer-group
-      KAFKA_TOPIC_IN: lattice.ocr.result.v1
-      KAFKA_TOPIC_OUT: lattice.mail.attachment.text.v1
-      KAFKA_TOPIC_DLQ: lattice.dlq.mail.ocr.v1
-      # Health
-      HEALTH_PORT: 3000
-    ports:
-      - "3109:3000"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - lattice-network
+
 
 networks:
   lattice-network:

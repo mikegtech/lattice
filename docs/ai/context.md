@@ -116,6 +116,37 @@ This file overrides chat history.
 - All notifications flow through Datadog (no direct Slack webhooks)
 - GCS backend for Terraform state
 
+### Phase 10 – Large Email Support & Attachment Extraction  (COMPLETE)
+
+#### Part A: Claim Check Pattern for Large Emails
+- Emails > 256 KB: Store raw content in MinIO, reference via `raw_object_uri`
+- Emails ≤ 256 KB: Inline `raw_payload` in Kafka message (fast path)
+- Maximum email size: 25 MB (matches Gmail limit)
+- Kafka message size stays under 1 MB (no broker changes needed)
+
+#### Part B: Attachment Storage & Extraction
+- mail-parser stores attachments to MinIO with `storage_uri`
+- New worker `mail-extractor` extracts text from:
+  - PDF (`application/pdf`)
+  - DOCX (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
+- Extracted text stored in `email_attachment.extracted_text`
+- mail-chunker processes attachment text (code already exists)
+
+**Kafka Topics:**
+- `lattice.mail.attachment.v1` – Extraction requests
+- `lattice.mail.attachment.extracted.v1` – Extraction complete
+- `lattice.dlq.mail.attachment.v1` – Extraction failures
+
+**Worker:**
+- `mail-extractor` – Text extraction from PDF/DOCX
+
+**Size Limits:**
+| Limit | Value |
+|-------|-------|
+| Max email size | 25 MB |
+| Max attachment size | 25 MB |
+| Inline threshold | 256 KB |
+| Kafka message max | 1 MB (unchanged) |
 ---
 
 ---
