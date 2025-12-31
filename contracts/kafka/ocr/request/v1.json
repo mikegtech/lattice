@@ -35,7 +35,12 @@
 		},
 		"ocr_reason": {
 			"type": "string",
-			"enum": ["image_attachment", "pdf_no_text", "pdf_low_quality_text", "unsupported_format"],
+			"enum": [
+				"image_attachment",
+				"pdf_no_text",
+				"pdf_low_quality_text",
+				"unsupported_format"
+			],
 			"description": "Why OCR is needed for this content"
 		},
 		"language_hint": {

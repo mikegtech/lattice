@@ -33,7 +33,16 @@
 		},
 		"stage": {
 			"type": "string",
-			"enum": ["raw", "parse", "extract", "chunk", "embed", "upsert", "delete", "audit"],
+			"enum": [
+				"raw",
+				"parse",
+				"extract",
+				"chunk",
+				"embed",
+				"upsert",
+				"delete",
+				"audit"
+			],
 			"description": "Pipeline stage that produced this event"
 		},
 		"schema_version": {
