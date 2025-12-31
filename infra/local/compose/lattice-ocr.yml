@@ -1,0 +1,136 @@
+# Lattice OCR Workers - Domain-agnostic OCR processing
+# Run with: docker compose -f lattice-core.yml -f lattice-workers.yml -f lattice-ocr.yml up -d
+#
+# Workers:
+#   - ocr-worker: Extracts text from images/PDFs using Tesseract OCR
+#   - mail-ocr-normalizer: Bridges OCR results back to mail pipeline
+
+x-common-env: &common-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+  LATTICE_TEAM: platform
+  LATTICE_CLOUD: local
+  LATTICE_REGION: local
+
+x-kafka-env: &kafka-env
+  KAFKA_BROKERS: ${KAFKA_BROKERS:-pkc-619z3.us-east1.gcp.confluent.cloud:9092}
+  KAFKA_SSL: "true"
+  KAFKA_SASL_MECHANISM: plain
+  KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-}
+  KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:-}
+
+x-postgres-env: &postgres-env
+  DATABASE_URL: postgresql://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@postgres:5432/lattice
+
+x-datadog-env: &datadog-env
+  DD_ENV: local
+  DD_AGENT_HOST: ${DD_AGENT_HOST:-lattice-datadog-agent}
+  DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
+  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-true}
+  DD_DOGSTATSD_PORT: ${DD_DOGSTATSD_PORT:-8125}
+
+x-storage-env: &storage-env
+  S3_ENDPOINT: http://minio:9000
+  S3_REGION: us-east-1
+  S3_ACCESS_KEY_ID: minioadmin
+  S3_SECRET_ACCESS_KEY: minioadmin # pragma: allowlist secret
+  S3_FORCE_PATH_STYLE: "true"
+
+services:
+  # ==========================================================================
+  # OCR Worker
+  # Consumes: lattice.ocr.request.v1
+  # Produces: lattice.ocr.result.v1
+  #
+  # Domain-agnostic OCR service using Tesseract. Stores extracted text in
+  # MinIO (claim-check pattern) and metadata in Postgres for idempotency.
+  # ==========================================================================
+  ocr-worker:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/ocr-worker/Dockerfile
+    container_name: lattice-ocr-worker
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-ocr"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-ocr
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: ocr
+      LATTICE_STAGE: extract
+      # Kafka topics
+      KAFKA_CLIENT_ID: ocr-worker
+      KAFKA_GROUP_ID: ocr-worker-group
+      KAFKA_TOPIC_IN: lattice.ocr.request.v1
+      KAFKA_TOPIC_OUT: lattice.ocr.result.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.ocr.v1
+      # OCR text storage bucket
+      S3_OCR_TEXT_BUCKET: lattice-ocr-text
+      # Tesseract config
+      TESSERACT_PATH: /usr/bin/tesseract
+      TESSERACT_LANG: eng
+      TESSERACT_DPI: "300"
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3108:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # Mail OCR Normalizer Worker
+  # Consumes: lattice.ocr.result.v1
+  # Produces: lattice.mail.attachment.text.v1
+  #
+  # Bridge worker that converts OCR results back to mail attachment text
+  # events, enabling attachment-chunker to process OCR results identically
+  # to direct text extractions.
+  # ==========================================================================
+  mail-ocr-normalizer:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/mail-ocr-normalizer/Dockerfile
+    container_name: lattice-mail-ocr-normalizer
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-ocr-normalizer"}]'
+    environment:
+      <<: [*common-env, *kafka-env, *storage-env, *datadog-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-mail-ocr-normalizer
+      DD_VERSION: "0.1.0"
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: ocr-normalize
+      # Kafka topics
+      KAFKA_CLIENT_ID: mail-ocr-normalizer
+      KAFKA_GROUP_ID: mail-ocr-normalizer-group
+      KAFKA_TOPIC_IN: lattice.ocr.result.v1
+      KAFKA_TOPIC_OUT: lattice.mail.attachment.text.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.mail.ocr.v1
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3109:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+networks:
+  lattice-network:
+    external: true
+    name: compose_lattice-network

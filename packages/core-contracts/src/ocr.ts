@@ -1,5 +1,10 @@
 /**
  * OCR request/result contracts - domain-agnostic OCR processing
+ *
+ * Design principles:
+ * - OCR text is stored in MinIO (not inline in Kafka messages)
+ * - Metadata is stored in Postgres for idempotency
+ * - Results reference text via URI (claim-check pattern)
  */
 
 /**
@@ -12,95 +17,143 @@ export type OcrReason =
 	| "unsupported_format";
 
 /**
- * Source domain for OCR requests
+ * OCR processing status (final states for Kafka messages)
  */
-export type OcrSourceDomain = "mail" | "property" | "other";
+export type OcrStatus = "success" | "failed";
 
 /**
- * OCR request priority
+ * OCR database status (includes intermediate "processing" state)
  */
-export type OcrPriority = "low" | "normal" | "high";
+export type OcrDbStatus = "processing" | "success" | "failed";
 
 /**
- * OCR processing status
+ * OCR engine type
  */
-export type OcrStatus = "success" | "failed" | "partial";
+export type OcrEngine = "tesseract";
+
+// ─────────────────────────────────────────────────────────────
+// REQUEST (Input to ocr-worker)
+// ─────────────────────────────────────────────────────────────
 
 /**
- * OCR request correlation data
+ * Source information for OCR request routing
  */
-export interface OcrCorrelation {
-	/** Topic that would have received this if OCR wasn't needed */
-	original_topic?: string;
-	/** Message ID from the extraction result */
-	original_message_id?: string;
-	/** Additional correlation data */
-	[key: string]: unknown;
+export interface OcrSource {
+	/** Requesting service name (e.g., "mail-extractor") */
+	service: string;
+	/** Correlation ID for matching results (e.g., "{email_id}:{attachment_id}") */
+	correlation_id: string;
+}
+
+/**
+ * Content information for OCR processing
+ */
+export interface OcrContent {
+	/** URI in MinIO/S3 */
+	storage_uri: string;
+	/** MIME type of the content */
+	mime_type: string;
+	/** Original filename (for logging) */
+	filename?: string;
+	/** File size in bytes */
+	size_bytes?: number;
+}
+
+/**
+ * OCR processing options
+ */
+export interface OcrOptions {
+	/** Engine: only "tesseract" supported for now */
+	engine?: OcrEngine;
+	/** DPI for PDF rendering (default: 300) */
+	dpi?: number;
+	/** Page range for multi-page docs (e.g., "1-5") */
+	page_range?: string;
 }
 
 /**
  * OCR request payload - emitted to lattice.ocr.request.v1
  */
 export interface OcrRequestPayload {
-	/** Unique identifier for this OCR request */
+	/** Unique request ID for idempotency */
 	request_id: string;
-	/** The domain that originated this OCR request */
-	source_domain: OcrSourceDomain;
-	/** ID of the parent document (email_id for mail, property_document_id for property) */
-	document_id: string;
-	/** ID of the specific part requiring OCR (attachment_id for mail) */
-	part_id: string;
-	/** Storage URI for the content to OCR */
-	object_uri: string;
-	/** MIME type of the content */
-	content_type: string;
-	/** Why OCR is needed for this content */
+
+	/** Source of the request (for routing results) */
+	source: OcrSource;
+
+	/** Content location in object storage */
+	content: OcrContent;
+
+	/** Why OCR is needed */
 	ocr_reason: OcrReason;
-	/** Optional language hint for OCR processing (ISO 639-1 code) */
-	language_hint?: string;
-	/** Processing priority */
-	priority?: OcrPriority;
-	/** Correlation data for tracing */
-	correlation?: OcrCorrelation;
+
+	/** OCR configuration */
+	options?: OcrOptions;
+
 	/** When this request was created */
 	created_at: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESULT (Output from ocr-worker)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * OCR extraction result details
+ */
+export interface OcrResultDetails {
+	/** Processing status */
+	status: OcrStatus;
+
+	/** URI to extracted text in MinIO (empty if failed) */
+	text_uri: string;
+
+	/** Text length in characters */
+	text_length: number;
+
+	/** Number of pages processed */
+	page_count: number;
+
+	/** Processing time in milliseconds */
+	processing_time_ms: number;
+
+	/** Confidence score (0-100) if available */
+	confidence?: number;
+}
+
+/**
+ * OCR error details
+ */
+export interface OcrError {
+	/** Error code (e.g., "TESSERACT_FAILED", "STORAGE_ERROR") */
+	code: string;
+	/** Detailed error message */
+	message: string;
 }
 
 /**
  * OCR result payload - emitted to lattice.ocr.result.v1
  */
 export interface OcrResultPayload {
-	/** The request ID this result corresponds to */
+	/** Matches request_id from OcrRequestPayload */
 	request_id: string;
-	/** The domain that originated this OCR request */
-	source_domain: OcrSourceDomain;
-	/** ID of the parent document */
-	document_id: string;
-	/** ID of the specific part that was OCR'd */
-	part_id: string;
-	/** OCR processing status */
-	status: OcrStatus;
-	/** The text extracted via OCR (empty if failed) */
-	extracted_text?: string;
-	/** Character count of extracted text */
-	extracted_text_length: number;
-	/** Identifier of the OCR model used */
-	ocr_model_id?: string;
-	/** Version of the OCR service/model */
-	ocr_version?: string;
-	/** Overall confidence score for the OCR result (0-1) */
-	confidence?: number;
-	/** Number of pages processed */
-	page_count?: number;
-	/** Time taken to process OCR in milliseconds */
-	processing_time_ms?: number;
-	/** Error message if OCR failed */
-	error?: string;
-	/** Correlation data passed through from the request */
-	correlation?: OcrCorrelation;
-	/** When OCR processing completed */
+
+	/** Source info echoed back for routing */
+	source: OcrSource;
+
+	/** Extraction result */
+	result: OcrResultDetails;
+
+	/** Error details if status is "failed" */
+	error?: OcrError;
+
+	/** ISO timestamp when processing completed */
 	completed_at: string;
 }
+
+// ─────────────────────────────────────────────────────────────
+// DLQ (Dead Letter Queue)
+// ─────────────────────────────────────────────────────────────
 
 /**
  * DLQ failure reasons for OCR
@@ -133,4 +186,32 @@ export interface OcrDlqPayload {
 	last_attempt_at?: string;
 	/** When this message was sent to DLQ */
 	dlq_at: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// POSTGRES RECORD (for repository)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * OCR result record stored in Postgres
+ */
+export interface OcrResultRecord {
+	id: string;
+	request_id: string;
+	tenant_id: string;
+	source_service: string;
+	correlation_id: string;
+	input_uri: string;
+	input_mime_type: string;
+	input_size_bytes?: number;
+	status: OcrDbStatus;
+	text_uri?: string;
+	text_length?: number;
+	page_count?: number;
+	processing_time_ms?: number;
+	confidence?: number;
+	error_code?: string;
+	error_message?: string;
+	created_at: Date;
+	completed_at?: Date;
 }
