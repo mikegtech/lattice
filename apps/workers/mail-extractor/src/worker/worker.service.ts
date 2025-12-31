@@ -159,16 +159,17 @@ export class MailExtractorService extends BaseWorkerService<
 
 				const ocrRequest: OcrRequestPayload = {
 					request_id: uuidv4(),
-					source_domain: "mail",
-					document_id: payload.email_id,
-					part_id: payload.attachment_id,
-					object_uri: payload.storage_uri,
-					content_type: payload.mime_type,
-					ocr_reason: extractionResult.ocr_reason ?? "pdf_no_text",
-					correlation: {
-						original_topic: TOPICS.MAIL_ATTACHMENT_TEXT,
-						original_message_id: uuidv4(),
+					source: {
+						service: "mail-extractor",
+						correlation_id: `${payload.email_id}:${payload.attachment_id}`,
 					},
+					content: {
+						storage_uri: payload.storage_uri,
+						mime_type: payload.mime_type,
+						filename: payload.filename,
+						size_bytes: payload.size_bytes,
+					},
+					ocr_reason: extractionResult.ocr_reason ?? "pdf_no_text",
 					created_at: new Date().toISOString(),
 				};
 

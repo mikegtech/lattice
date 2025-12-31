@@ -28,14 +28,19 @@ export type {
 // OCR payloads
 export type {
 	OcrReason,
-	OcrSourceDomain,
-	OcrPriority,
 	OcrStatus,
-	OcrCorrelation,
+	OcrDbStatus,
+	OcrEngine,
+	OcrSource,
+	OcrContent,
+	OcrOptions,
 	OcrRequestPayload,
+	OcrResultDetails,
+	OcrError,
 	OcrResultPayload,
 	OcrDlqFailureReason,
 	OcrDlqPayload,
+	OcrResultRecord,
 } from "./ocr.js";
 
 // DLQ and audit payloads
