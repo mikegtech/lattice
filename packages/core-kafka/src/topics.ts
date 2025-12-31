@@ -11,6 +11,14 @@ export const TOPICS = {
 	MAIL_UPSERT: "lattice.mail.upsert.v1",
 	MAIL_DELETE: "lattice.mail.delete.v1",
 
+	// Attachment text pipeline (convergence point for extraction + OCR)
+	MAIL_ATTACHMENT_TEXT: "lattice.mail.attachment.text.v1",
+
+	// OCR pipeline topics (domain-agnostic)
+	OCR_REQUEST: "lattice.ocr.request.v1",
+	OCR_RESULT: "lattice.ocr.result.v1",
+	OCR_DLQ: "lattice.dlq.ocr.v1",
+
 	// DLQ topics
 	MAIL_DLQ: "lattice.mail.dlq.v1",
 
@@ -24,6 +32,10 @@ export type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
  * Get the DLQ topic for a given source topic
  */
 export function getDLQTopic(sourceTopic: string): string {
+	// OCR topics have their own DLQ
+	if (sourceTopic.startsWith("lattice.ocr.")) {
+		return TOPICS.OCR_DLQ;
+	}
 	// For now, all mail topics go to the same DLQ
 	if (sourceTopic.startsWith("lattice.mail.")) {
 		return TOPICS.MAIL_DLQ;

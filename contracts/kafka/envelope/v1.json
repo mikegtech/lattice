@@ -28,12 +28,12 @@
 		},
 		"domain": {
 			"type": "string",
-			"enum": ["mail", "calendar", "drive", "contacts"],
+			"enum": ["mail", "calendar", "drive", "contacts", "ocr"],
 			"description": "Business domain for this event"
 		},
 		"stage": {
 			"type": "string",
-			"enum": ["raw", "parse", "chunk", "embed", "upsert", "delete", "audit"],
+			"enum": ["raw", "parse", "extract", "chunk", "embed", "upsert", "delete", "audit"],
 			"description": "Pipeline stage that produced this event"
 		},
 		"schema_version": {

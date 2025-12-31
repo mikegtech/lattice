@@ -1,0 +1,91 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.ocr.result.v1",
+	"title": "OCR Result v1",
+	"description": "Result of OCR processing, emitted by the OCR worker",
+	"type": "object",
+	"properties": {
+		"request_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "The request ID this result corresponds to"
+		},
+		"source_domain": {
+			"type": "string",
+			"enum": ["mail", "property", "other"],
+			"description": "The domain that originated this OCR request"
+		},
+		"document_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "ID of the parent document"
+		},
+		"part_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "ID of the specific part that was OCR'd"
+		},
+		"status": {
+			"type": "string",
+			"enum": ["success", "failed", "partial"],
+			"description": "OCR processing status"
+		},
+		"extracted_text": {
+			"type": "string",
+			"description": "The text extracted via OCR (empty if failed)"
+		},
+		"extracted_text_length": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Character count of extracted text"
+		},
+		"ocr_model_id": {
+			"type": "string",
+			"description": "Identifier of the OCR model used (e.g., 'tesseract-5.3', 'google-vision-v1')"
+		},
+		"ocr_version": {
+			"type": "string",
+			"description": "Version of the OCR service/model"
+		},
+		"confidence": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1,
+			"description": "Overall confidence score for the OCR result (0-1)"
+		},
+		"page_count": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Number of pages processed"
+		},
+		"processing_time_ms": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Time taken to process OCR in milliseconds"
+		},
+		"error": {
+			"type": "string",
+			"description": "Error message if OCR failed"
+		},
+		"correlation": {
+			"type": "object",
+			"description": "Correlation data passed through from the request",
+			"additionalProperties": true
+		},
+		"completed_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When OCR processing completed"
+		}
+	},
+	"required": [
+		"request_id",
+		"source_domain",
+		"document_id",
+		"part_id",
+		"status",
+		"extracted_text_length",
+		"completed_at"
+	],
+	"additionalProperties": false
+}

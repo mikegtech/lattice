@@ -373,6 +373,9 @@ importers:
       rxjs:
         specifier: ^7.8.0
         version: 7.8.2
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.1
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -383,6 +386,9 @@ importers:
       '@types/pg':
         specifier: ^8.10.0
         version: 8.16.0
+      '@types/uuid':
+        specifier: ^9.0.0
+        version: 9.0.8
       tsx:
         specifier: ^4.7.0
         version: 4.21.0

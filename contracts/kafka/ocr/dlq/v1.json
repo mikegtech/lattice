@@ -1,0 +1,86 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.dlq.ocr.v1",
+	"title": "OCR Dead Letter Queue v1",
+	"description": "Dead letter queue entry for failed OCR processing that cannot be retried",
+	"type": "object",
+	"properties": {
+		"original_request": {
+			"type": "object",
+			"description": "The original OCR request that failed",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"source_domain": {
+					"type": "string",
+					"enum": ["mail", "property", "other"]
+				},
+				"document_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"part_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"object_uri": {
+					"type": "string"
+				},
+				"content_type": {
+					"type": "string"
+				}
+			},
+			"required": ["request_id", "source_domain", "document_id", "part_id"]
+		},
+		"failure_reason": {
+			"type": "string",
+			"enum": [
+				"max_retries_exceeded",
+				"invalid_content",
+				"content_too_large",
+				"unsupported_format",
+				"processing_error",
+				"timeout"
+			],
+			"description": "Category of failure"
+		},
+		"error_message": {
+			"type": "string",
+			"description": "Detailed error message"
+		},
+		"error_stack": {
+			"type": "string",
+			"description": "Stack trace if available"
+		},
+		"retry_count": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Number of retries attempted before DLQ"
+		},
+		"first_attempt_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When the first processing attempt occurred"
+		},
+		"last_attempt_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When the last processing attempt occurred"
+		},
+		"dlq_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When this message was sent to DLQ"
+		}
+	},
+	"required": [
+		"original_request",
+		"failure_reason",
+		"error_message",
+		"retry_count",
+		"dlq_at"
+	],
+	"additionalProperties": false
+}

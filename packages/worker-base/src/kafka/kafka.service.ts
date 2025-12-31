@@ -368,7 +368,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 		options: {
 			tenantId: string;
 			accountId: string;
-			domain: "mail" | "calendar" | "drive" | "contacts";
+			domain: "mail" | "calendar" | "drive" | "contacts" | "ocr";
 			stage: string;
 			schemaVersion: string;
 		},
@@ -382,6 +382,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 			stage: options.stage as
 				| "raw"
 				| "parse"
+				| "extract"
 				| "chunk"
 				| "embed"
 				| "upsert"

@@ -412,3 +412,45 @@ export interface MailDeletePayload {
 	/** When deletion was requested */
 	requested_at: string;
 }
+
+/**
+ * How the attachment text was obtained
+ */
+export type AttachmentTextSource = "extraction" | "ocr";
+
+/**
+ * Text quality metrics for attachment text
+ */
+export interface AttachmentTextQuality {
+	/** Confidence score (from OCR) or 1.0 for direct extraction */
+	confidence?: number;
+	/** Model used for OCR (null for direct extraction) */
+	source_model?: string;
+}
+
+/**
+ * Attachment text ready payload - emitted to lattice.mail.attachment.text.v1
+ * Convergence point for both direct extraction and OCR processing paths.
+ */
+export interface AttachmentTextReadyPayload {
+	/** Lattice email ID */
+	email_id: string;
+	/** Lattice attachment ID */
+	attachment_id: string;
+	/** How the text was obtained */
+	text_source: AttachmentTextSource;
+	/** Character count of the text */
+	text_length: number;
+	/** Original MIME type of the attachment */
+	mime_type: string;
+	/** Original filename of the attachment */
+	filename?: string;
+	/** Storage URI of the original attachment */
+	storage_uri?: string;
+	/** Quality metrics for the extracted text */
+	text_quality?: AttachmentTextQuality;
+	/** OCR request ID if text came from OCR (null for direct extraction) */
+	ocr_request_id?: string;
+	/** When the text became ready for processing */
+	ready_at: string;
+}
