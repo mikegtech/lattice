@@ -1,0 +1,77 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.mail.attachment.text.v1",
+	"title": "Attachment Text Ready v1",
+	"description": "Notification that attachment text is ready for chunking. Convergence point for both direct extraction and OCR processing paths.",
+	"type": "object",
+	"properties": {
+		"email_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice email ID"
+		},
+		"attachment_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Lattice attachment ID"
+		},
+		"text_source": {
+			"type": "string",
+			"enum": ["extraction", "ocr"],
+			"description": "How the text was obtained"
+		},
+		"text_length": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Character count of the text"
+		},
+		"mime_type": {
+			"type": "string",
+			"description": "Original MIME type of the attachment"
+		},
+		"filename": {
+			"type": "string",
+			"description": "Original filename of the attachment"
+		},
+		"storage_uri": {
+			"type": "string",
+			"description": "Storage URI of the original attachment"
+		},
+		"text_quality": {
+			"type": "object",
+			"description": "Quality metrics for the extracted text",
+			"properties": {
+				"confidence": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 1,
+					"description": "Confidence score (from OCR) or 1.0 for direct extraction"
+				},
+				"source_model": {
+					"type": "string",
+					"description": "Model used for OCR (null for direct extraction)"
+				}
+			},
+			"additionalProperties": false
+		},
+		"ocr_request_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "OCR request ID if text came from OCR (null for direct extraction)"
+		},
+		"ready_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When the text became ready for processing"
+		}
+	},
+	"required": [
+		"email_id",
+		"attachment_id",
+		"text_source",
+		"text_length",
+		"mime_type",
+		"ready_at"
+	],
+	"additionalProperties": false
+}

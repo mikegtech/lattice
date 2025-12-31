@@ -20,7 +20,23 @@ export type {
 	AttachmentExtractRequest,
 	AttachmentExtractResult,
 	ExtractableAttachment,
+	AttachmentTextReadyPayload,
+	AttachmentTextSource,
+	AttachmentTextQuality,
 } from "./mail.js";
+
+// OCR payloads
+export type {
+	OcrReason,
+	OcrSourceDomain,
+	OcrPriority,
+	OcrStatus,
+	OcrCorrelation,
+	OcrRequestPayload,
+	OcrResultPayload,
+	OcrDlqFailureReason,
+	OcrDlqPayload,
+} from "./ocr.js";
 
 // DLQ and audit payloads
 export type { DLQPayload, AuditEventPayload } from "./dlq.js";

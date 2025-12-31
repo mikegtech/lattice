@@ -1,0 +1,89 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "lattice.ocr.request.v1",
+	"title": "OCR Request v1",
+	"description": "Request to perform OCR on a document or attachment. Domain-agnostic to support mail, property, and other source types.",
+	"type": "object",
+	"properties": {
+		"request_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Unique identifier for this OCR request"
+		},
+		"source_domain": {
+			"type": "string",
+			"enum": ["mail", "property", "other"],
+			"description": "The domain that originated this OCR request"
+		},
+		"document_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "ID of the parent document (email_id for mail, property_document_id for property)"
+		},
+		"part_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "ID of the specific part requiring OCR (attachment_id for mail)"
+		},
+		"object_uri": {
+			"type": "string",
+			"description": "Storage URI for the content to OCR (e.g., s3://bucket/path)"
+		},
+		"content_type": {
+			"type": "string",
+			"description": "MIME type of the content (e.g., application/pdf, image/jpeg)"
+		},
+		"ocr_reason": {
+			"type": "string",
+			"enum": [
+				"image_attachment",
+				"pdf_no_text",
+				"pdf_low_quality_text",
+				"unsupported_format"
+			],
+			"description": "Why OCR is needed for this content"
+		},
+		"language_hint": {
+			"type": "string",
+			"description": "Optional language hint for OCR processing (ISO 639-1 code)"
+		},
+		"priority": {
+			"type": "string",
+			"enum": ["low", "normal", "high"],
+			"default": "normal",
+			"description": "Processing priority for this request"
+		},
+		"correlation": {
+			"type": "object",
+			"description": "Correlation data for tracing back to originating request",
+			"properties": {
+				"original_topic": {
+					"type": "string",
+					"description": "Topic that would have received this if OCR wasn't needed"
+				},
+				"original_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Message ID from the extraction result"
+				}
+			},
+			"additionalProperties": true
+		},
+		"created_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "When this request was created"
+		}
+	},
+	"required": [
+		"request_id",
+		"source_domain",
+		"document_id",
+		"part_id",
+		"object_uri",
+		"content_type",
+		"ocr_reason",
+		"created_at"
+	],
+	"additionalProperties": false
+}

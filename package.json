@@ -27,6 +27,7 @@
 		"docker:build:mail-upserter": "docker build -t lattice-mail-upserter -f apps/workers/mail-upserter/Dockerfile .",
 		"docker:build:mail-deleter": "docker build -t lattice-mail-deleter -f apps/workers/mail-deleter/Dockerfile .",
 		"docker:build:audit-writer": "docker build -t lattice-audit-writer -f apps/workers/audit-writer/Dockerfile .",
+		"docker:build:mail-extractor": "docker build -t lattice-mail-extractor -f apps/workers/mail-extractor/Dockerfile .",
 		"generate:worker": "tsx tools/generators/new-worker/generate.ts"
 	},
 	"devDependencies": {

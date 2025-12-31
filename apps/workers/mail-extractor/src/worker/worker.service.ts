@@ -1,7 +1,10 @@
 import type {
 	AttachmentExtractRequest,
 	AttachmentExtractResult,
+	AttachmentTextReadyPayload,
+	OcrRequestPayload,
 } from "@lattice/core-contracts";
+import { TOPICS } from "@lattice/core-kafka";
 import {
 	BaseWorkerService,
 	type KafkaService,
@@ -12,6 +15,7 @@ import {
 	classifyError,
 } from "@lattice/worker-base";
 import { Injectable } from "@nestjs/common";
+import { v4 as uuidv4 } from "uuid";
 import type { AttachmentRepository } from "../db/attachment.repository.js";
 import type { ExtractionService } from "../extraction/extraction.service.js";
 import type { StorageService } from "../storage/storage.service.js";
@@ -114,30 +118,132 @@ export class MailExtractorService extends BaseWorkerService<
 				},
 			);
 
+			// Map extraction status to contract-compatible status
+			// The contract only supports "success" | "failed" | "unsupported"
+			// We map "needs_ocr" to "pending_ocr" in DB to track OCR state
+			const dbStatus: "success" | "failed" | "unsupported" | "pending_ocr" =
+				extractionResult.status === "needs_ocr"
+					? "pending_ocr"
+					: extractionResult.status;
+
+			// Build error message for needs_ocr cases
+			const errorMessage =
+				extractionResult.status === "needs_ocr"
+					? `OCR required: ${extractionResult.ocr_reason ?? "unknown reason"}`
+					: extractionResult.error;
+
 			// Update database
 			const startDb = Date.now();
 			await this.attachmentRepository.updateExtractedText(
 				payload.email_id,
 				payload.attachment_id,
 				extractionResult.status === "success" ? extractionResult.text : null,
-				extractionResult.status,
-				extractionResult.error,
+				dbStatus === "pending_ocr" ? "failed" : dbStatus, // DB schema uses "failed" for pending_ocr
+				errorMessage,
 			);
 			this.telemetry.timing("db.update_ms", Date.now() - startDb, {
 				stage: "extract",
 			});
 
-			// Build result
+			// Get tenant/account from context for message routing
+			const tenantId = context.envelope?.tenant_id ?? "unknown";
+			const accountId = context.envelope?.account_id ?? "unknown";
+
+			// Route to appropriate topic based on extraction result
+			if (extractionResult.needs_ocr) {
+				// Emit OCR request
+				this.telemetry.increment("extraction.needs_ocr", 1, {
+					stage: "extract",
+					ocr_reason: extractionResult.ocr_reason ?? "unknown",
+				});
+
+				const ocrRequest: OcrRequestPayload = {
+					request_id: uuidv4(),
+					source_domain: "mail",
+					document_id: payload.email_id,
+					part_id: payload.attachment_id,
+					object_uri: payload.storage_uri,
+					content_type: payload.mime_type,
+					ocr_reason: extractionResult.ocr_reason ?? "pdf_no_text",
+					correlation: {
+						original_topic: TOPICS.MAIL_ATTACHMENT_TEXT,
+						original_message_id: uuidv4(),
+					},
+					created_at: new Date().toISOString(),
+				};
+
+				await this.kafka.produce(TOPICS.OCR_REQUEST, ocrRequest, {
+					tenantId,
+					accountId,
+					domain: "ocr",
+					stage: "extract",
+					schemaVersion: "v1",
+				});
+
+				this.logger.info("Emitted OCR request", {
+					...logContext,
+					ocr_request_id: ocrRequest.request_id,
+					ocr_reason: extractionResult.ocr_reason,
+				});
+
+				this.telemetry.increment("messages.ocr_request_emitted", 1, {
+					stage: "extract",
+					ocr_reason: extractionResult.ocr_reason ?? "unknown",
+				});
+			} else if (extractionResult.status === "success") {
+				// Emit text-ready event for successful extraction
+				const textReadyPayload: AttachmentTextReadyPayload = {
+					email_id: payload.email_id,
+					attachment_id: payload.attachment_id,
+					text_source: "extraction",
+					text_length: extractionResult.text.length,
+					mime_type: payload.mime_type,
+					filename: payload.filename,
+					storage_uri: payload.storage_uri,
+					text_quality: {
+						confidence: 1.0, // Direct extraction has full confidence
+					},
+					ready_at: new Date().toISOString(),
+				};
+
+				await this.kafka.produce(
+					TOPICS.MAIL_ATTACHMENT_TEXT,
+					textReadyPayload,
+					{
+						tenantId,
+						accountId,
+						domain: "mail",
+						stage: "extract",
+						schemaVersion: "v1",
+					},
+				);
+
+				this.logger.info("Emitted attachment text ready event", {
+					...logContext,
+					text_length: extractionResult.text.length,
+				});
+
+				this.telemetry.increment("messages.text_ready_emitted", 1, {
+					stage: "extract",
+				});
+			}
+
+			// Build result for legacy output topic (if configured)
+			const contractStatus: "success" | "failed" | "unsupported" =
+				extractionResult.status === "needs_ocr"
+					? "failed"
+					: extractionResult.status;
+
 			const result: AttachmentExtractResult = {
 				email_id: payload.email_id,
 				attachment_id: payload.attachment_id,
-				extraction_status: extractionResult.status,
+				extraction_status: contractStatus,
 				extracted_text_length: extractionResult.text.length,
 				extracted_at: new Date().toISOString(),
 			};
 
-			if (extractionResult.error) {
-				result.extraction_error = extractionResult.error;
+			if (errorMessage) {
+				result.extraction_error = errorMessage;
 			}
 
 			this.telemetry.increment("messages.success", 1, {
@@ -148,7 +254,10 @@ export class MailExtractorService extends BaseWorkerService<
 			this.logger.info("Attachment extraction complete", {
 				...logContext,
 				extraction_status: extractionResult.status,
+				contract_status: contractStatus,
 				text_length: extractionResult.text.length,
+				needs_ocr: extractionResult.needs_ocr,
+				ocr_reason: extractionResult.ocr_reason,
 			});
 
 			return { status: "success", output: result };

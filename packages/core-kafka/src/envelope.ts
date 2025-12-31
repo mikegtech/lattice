@@ -28,7 +28,7 @@ export interface Envelope<T = unknown> {
 	tenant_id: string;
 	account_id: string;
 	alias?: string;
-	domain: "mail" | "calendar" | "drive" | "contacts";
+	domain: "mail" | "calendar" | "drive" | "contacts" | "ocr";
 	stage:
 		| "raw"
 		| "parse"
@@ -96,7 +96,7 @@ const REQUIRED_ENVELOPE_FIELDS = [
 	"payload",
 ] as const;
 
-const VALID_DOMAINS = ["mail", "calendar", "drive", "contacts"];
+const VALID_DOMAINS = ["mail", "calendar", "drive", "contacts", "ocr"];
 const VALID_STAGES = [
 	"raw",
 	"parse",

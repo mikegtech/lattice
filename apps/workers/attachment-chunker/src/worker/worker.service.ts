@@ -1,5 +1,5 @@
 import type {
-	AttachmentExtractResult,
+	AttachmentTextReadyPayload,
 	MailChunkPayload,
 } from "@lattice/core-contracts";
 import {
@@ -17,7 +17,7 @@ import type { AttachmentRepository } from "../db/attachment.repository.js";
 
 @Injectable()
 export class AttachmentChunkerService extends BaseWorkerService<
-	AttachmentExtractResult,
+	AttachmentTextReadyPayload,
 	MailChunkPayload
 > {
 	constructor(
@@ -32,7 +32,7 @@ export class AttachmentChunkerService extends BaseWorkerService<
 	}
 
 	protected async process(
-		payload: AttachmentExtractResult,
+		payload: AttachmentTextReadyPayload,
 		context: WorkerContext,
 	): Promise<
 		| { status: "success"; output?: MailChunkPayload }
@@ -43,41 +43,27 @@ export class AttachmentChunkerService extends BaseWorkerService<
 		const logContext: Record<string, unknown> = {
 			email_id: payload.email_id,
 			attachment_id: payload.attachment_id,
-			extraction_status: payload.extraction_status,
+			text_source: payload.text_source,
+			text_length: payload.text_length,
 			stage: "chunk",
 		};
 		if (context.traceId) logContext["trace_id"] = context.traceId;
 
-		this.logger.info("Processing attachment for chunking", logContext);
+		this.logger.info("Processing attachment text for chunking", logContext);
 		this.telemetry.increment("messages.received", 1, {
 			stage: "chunk",
 			source_type: "attachment",
+			text_source: payload.text_source,
 		});
 
-		// Skip if extraction failed or unsupported
-		if (payload.extraction_status !== "success") {
-			this.logger.info("Skipping non-successful extraction", {
-				...logContext,
-				reason: payload.extraction_status,
-			});
-			this.telemetry.increment("messages.skipped", 1, {
-				stage: "chunk",
-				reason: payload.extraction_status,
-			});
-			return {
-				status: "skip",
-				reason: `Extraction status: ${payload.extraction_status}`,
-			};
-		}
-
-		// Skip if no text extracted
-		if (!payload.extracted_text_length || payload.extracted_text_length === 0) {
-			this.logger.info("Skipping empty extraction", logContext);
+		// Skip if no text
+		if (!payload.text_length || payload.text_length === 0) {
+			this.logger.info("Skipping empty text", logContext);
 			this.telemetry.increment("messages.skipped", 1, {
 				stage: "chunk",
 				reason: "empty_text",
 			});
-			return { status: "skip", reason: "No text extracted" };
+			return { status: "skip", reason: "No text to chunk" };
 		}
 
 		try {
@@ -177,10 +163,12 @@ export class AttachmentChunkerService extends BaseWorkerService<
 			this.telemetry.increment("chunks.created", chunks.length, {
 				stage: "chunk",
 				source_type: "attachment",
+				text_source: payload.text_source,
 			});
 			this.telemetry.increment("messages.success", 1, {
 				stage: "chunk",
 				source_type: "attachment",
+				text_source: payload.text_source,
 			});
 
 			// Return success (no single output - we produced multiple chunks)
@@ -190,6 +178,7 @@ export class AttachmentChunkerService extends BaseWorkerService<
 			this.telemetry.increment("messages.error", 1, {
 				stage: "chunk",
 				source_type: "attachment",
+				text_source: payload.text_source,
 			});
 
 			this.logger.error(
