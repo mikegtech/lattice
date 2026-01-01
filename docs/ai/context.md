@@ -147,6 +147,78 @@ This file overrides chat history.
 | Max attachment size | 25 MB |
 | Inline threshold | 256 KB |
 | Kafka message max | 1 MB (unchanged) |
+
+### Phase 11 – OCR Service (COMPLETE)
+
+#### Part A: Shared OCR Worker
+- NestJS worker `ocr-worker` for text extraction from images and scanned PDFs
+- Tesseract OCR engine (English only, `-l eng`)
+- Handles:
+  - Images: JPEG, PNG, TIFF, WebP, GIF, BMP
+  - Scanned PDFs (converted via `pdftoppm`)
+  - ZIP archives masquerading as PDFs (magic byte detection)
+- Claim-check pattern: extracted text stored in MinIO (`lattice-ocr-results` bucket)
+- Metadata stored in Postgres (`ocr_result` table) for idempotency
+- Standalone deployment: `infra/local/compose/lattice-ocr.yml`
+
+#### Part B: Mail OCR Normalizer
+- NestJS worker `mail-ocr-normalizer` bridges OCR results to mail pipeline
+- Filters by `source.service === "mail-extractor"`
+- Fetches text from MinIO `text_uri`
+- Emits to `lattice.mail.attachment.text.v1` with `extraction_source: "ocr"`
+- Runs in `lattice-workers.yml` (lightweight, I/O only)
+
+#### Part C: Integration
+- `mail-extractor` routes OCR-needed attachments via `needs_ocr` flag
+- OCR requests include `source.service` and `correlation_id` for routing
+- `attachment-chunker` unchanged - consumes unified `attachment.text.v1` topic
+
+**Architecture:**
+```
+mail-extractor (needs_ocr=true)
+       │
+       ▼
+lattice.ocr.request.v1
+       │
+       ▼
+┌──────────────────────────┐
+│      ocr-worker          │  ← Standalone (lattice-ocr.yml)
+│  └─ Tesseract → MinIO    │
+└──────────────────────────┘
+       │
+       ▼
+lattice.ocr.result.v1 (text_uri reference)
+       │
+       ▼
+┌──────────────────────────┐
+│  mail-ocr-normalizer     │  ← With mail workers (lattice-workers.yml)
+│  └─ Fetch text → Emit    │
+└──────────────────────────┘
+       │
+       ▼
+lattice.mail.attachment.text.v1
+       │
+       ▼
+attachment-chunker (unchanged)
+```
+
+**Kafka Topics:**
+- `lattice.ocr.request.v1` – OCR requests (from any service)
+- `lattice.ocr.result.v1` – OCR results with `text_uri`
+- `lattice.dlq.ocr.v1` – Failed OCR requests
+- `lattice.dlq.mail.ocr-normalizer.v1` – Failed normalizations
+
+**Infrastructure:**
+- MinIO bucket: `lattice-ocr-results`
+- Postgres table: `ocr_result` (migration: `012_ocr_result.sql`)
+- Compose file: `infra/local/compose/lattice-ocr.yml`
+- Ports: ocr-worker `:3108`, mail-ocr-normalizer `:3109`
+
+**Design Notes:**
+- Shared service: `ocr-worker` can serve future domains (property-images, etc.)
+- Domain isolation: Each domain has its own normalizer filtering by `source.service`
+- Single input topic (`lattice.ocr.request.v1`) with fan-out via normalizers
+
 ---
 
 ---
@@ -185,6 +257,10 @@ During stabilization phase:
   - attachment-chunker
   - mail-deleter
   - audit-writer
+- mail-ocr-normalizer `:3109`
+
+### OCR Service (`lattice-ocr.yml`) – Standalone
+- ocr-worker `:3108`
 
 ---
 

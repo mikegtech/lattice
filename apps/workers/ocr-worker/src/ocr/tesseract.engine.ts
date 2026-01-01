@@ -228,7 +228,9 @@ export class TesseractEngine {
 
 		const combinedText = pageTexts.join("\n\n--- Page Break ---\n\n").trim();
 		const avgConfidence =
-			pageImages.length > 0 ? totalConfidence / pageImages.length : undefined;
+			pageImages.length > 0
+				? Math.round(totalConfidence / pageImages.length)
+				: undefined;
 
 		return {
 			text: combinedText,

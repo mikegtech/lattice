@@ -17,16 +17,16 @@ export class StorageConfigFactory {
 
 	create(): StorageConfig {
 		const config: StorageConfig = {
-			endpoint: process.env["S3_ENDPOINT"],
+			endpoint: process.env["MINIO_ENDPOINT"],
 			region: process.env["S3_REGION"] ?? "us-east-1",
-			accessKeyId: process.env["S3_ACCESS_KEY_ID"] ?? "",
-			secretAccessKey: process.env["S3_SECRET_ACCESS_KEY"] ?? "",
+			accessKeyId: process.env["MINIO_ACCESS_KEY"] ?? "",
+			secretAccessKey: process.env["MINIO_SECRET_KEY"] ?? "",
 			forcePathStyle: process.env["S3_FORCE_PATH_STYLE"] === "true",
 		};
 
 		if (!config.accessKeyId || !config.secretAccessKey) {
 			this.logger.warn(
-				"S3 credentials not configured - storage operations will fail",
+				"MinIO credentials not configured - storage operations will fail",
 			);
 		}
 
