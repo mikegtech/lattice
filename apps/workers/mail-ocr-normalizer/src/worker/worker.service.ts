@@ -13,6 +13,7 @@ import {
 	classifyError,
 } from "@lattice/worker-base";
 import { Injectable } from "@nestjs/common";
+import type { AttachmentRepository } from "../db/attachment.repository.js";
 import type { StorageService } from "../storage/storage.service.js";
 
 /**
@@ -35,6 +36,7 @@ export class MailOcrNormalizerService extends BaseWorkerService<
 		logger: LoggerService,
 		config: WorkerConfig,
 		private readonly storageService: StorageService,
+		private readonly attachmentRepository: AttachmentRepository,
 	) {
 		super(kafka, telemetry, logger, config);
 	}
@@ -133,6 +135,22 @@ export class MailOcrNormalizerService extends BaseWorkerService<
 				text_length: ocrText.length,
 				text_uri: payload.result.text_uri,
 			});
+
+			// Update the email_attachment table with extracted text
+			const updateResult = await this.attachmentRepository.updateExtractedText(
+				emailId,
+				attachmentId,
+				ocrText,
+			);
+
+			if (!updateResult.updated) {
+				this.logger.warn("Failed to update attachment with OCR text", {
+					...logContext,
+					email_id: emailId,
+					attachment_id: attachmentId,
+				});
+				// Continue anyway - the text is available in MinIO
+			}
 
 			// Build the AttachmentTextReadyPayload
 			const textReadyPayload: AttachmentTextReadyPayload = {
