@@ -6,6 +6,7 @@ import {
 	WorkerConfigModule,
 } from "@lattice/worker-base";
 import { Module } from "@nestjs/common";
+import { DatabaseModule } from "./db/database.module.js";
 import { WorkerModule } from "./worker/worker.module.js";
 
 @Module({
@@ -20,6 +21,7 @@ import { WorkerModule } from "./worker/worker.module.js";
 			expectedSchemaVersion: "v1",
 		}),
 		HealthModule,
+		DatabaseModule,
 
 		// Worker-specific modules
 		WorkerModule,

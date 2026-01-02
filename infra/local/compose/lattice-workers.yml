@@ -336,7 +336,7 @@ services:
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-ocr-normalizer"}]'
     environment:
-      <<: [*common-env, *kafka-env, *storage-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-ocr-normalizer
       DD_VERSION: "0.1.0"

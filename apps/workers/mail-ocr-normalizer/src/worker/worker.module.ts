@@ -7,6 +7,10 @@ import {
 	type WorkerConfig,
 } from "@lattice/worker-base";
 import { Module } from "@nestjs/common";
+import {
+	ATTACHMENT_REPOSITORY,
+	AttachmentRepository,
+} from "../db/attachment.repository.js";
 import { StorageModule } from "../storage/storage.module.js";
 import {
 	STORAGE_SERVICE,
@@ -17,6 +21,11 @@ import { MailOcrNormalizerService } from "./worker.service.js";
 @Module({
 	imports: [StorageModule],
 	providers: [
+		AttachmentRepository,
+		{
+			provide: ATTACHMENT_REPOSITORY,
+			useExisting: AttachmentRepository,
+		},
 		{
 			provide: MailOcrNormalizerService,
 			useFactory: (
@@ -25,6 +34,7 @@ import { MailOcrNormalizerService } from "./worker.service.js";
 				logger: LoggerService,
 				config: WorkerConfig,
 				storageService: StorageService,
+				attachmentRepository: AttachmentRepository,
 			) => {
 				return new MailOcrNormalizerService(
 					kafka,
@@ -32,6 +42,7 @@ import { MailOcrNormalizerService } from "./worker.service.js";
 					logger,
 					config,
 					storageService,
+					attachmentRepository,
 				);
 			},
 			inject: [
@@ -40,6 +51,7 @@ import { MailOcrNormalizerService } from "./worker.service.js";
 				LOGGER,
 				WORKER_CONFIG,
 				STORAGE_SERVICE,
+				AttachmentRepository,
 			],
 		},
 	],
