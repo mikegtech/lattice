@@ -178,7 +178,7 @@ export class MailOcrNormalizerService extends BaseWorkerService<
 				tenantId,
 				accountId,
 				domain: "mail",
-				stage: "ocr-normalize",
+				stage: "extract",
 				schemaVersion: "v1",
 			});
 

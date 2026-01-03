@@ -14,6 +14,7 @@ import {
 import { Injectable } from "@nestjs/common";
 import type { ChunkingService } from "../chunking/chunking.service.js";
 import type { AttachmentRepository } from "../db/attachment.repository.js";
+import type { ChunkRepository } from "../db/chunk.repository.js";
 
 @Injectable()
 export class AttachmentChunkerService extends BaseWorkerService<
@@ -27,6 +28,7 @@ export class AttachmentChunkerService extends BaseWorkerService<
 		config: WorkerConfig,
 		private readonly attachmentRepository: AttachmentRepository,
 		private readonly chunkingService: ChunkingService,
+		private readonly chunkRepository: ChunkRepository,
 	) {
 		super(kafka, telemetry, logger, config);
 	}
@@ -118,6 +120,30 @@ export class AttachmentChunkerService extends BaseWorkerService<
 				...logContext,
 				chunk_count: chunks.length,
 				text_length: attachment.extracted_text.length,
+			});
+
+			// Persist chunks to Postgres
+			const startDb = Date.now();
+			await this.chunkRepository.insertChunks(
+				chunks.map((chunk) => ({
+					email_id: payload.email_id,
+					attachment_id: payload.attachment_id,
+					chunk_id: chunk.chunkId,
+					chunk_hash: chunk.chunkHash,
+					chunk_index: chunk.chunkIndex,
+					total_chunks: chunk.totalChunks,
+					chunk_text: chunk.chunkText,
+					char_count: chunk.charCount,
+					token_count_estimate: chunk.tokenCountEstimate,
+					source_type: "attachment" as const,
+					section_type: "attachment_text" as const,
+					chunking_version: chunk.chunkingVersion,
+					normalization_version: chunk.normalizationVersion,
+				})),
+			);
+			this.telemetry.timing("db.insert_ms", Date.now() - startDb, {
+				stage: "chunk",
+				source_type: "attachment",
 			});
 
 			// Get output topic
