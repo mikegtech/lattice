@@ -164,11 +164,22 @@ services:
       KAFKA_TOPIC_IN: lattice.mail.chunk.v1
       KAFKA_TOPIC_OUT: lattice.mail.embed.v1
       KAFKA_TOPIC_DLQ: lattice.dlq.mail.embed.v1
-      # Embedding config
-      EMBEDDING_PROVIDER: local-stub
+      # Embedding provider config (nomic - 768 dims, 8192 token context)
+      EMBEDDING_PROVIDER: nomic
       EMBEDDING_VERSION: v1
       EMBEDDING_BATCH_SIZE: "10"
       EMBEDDING_RATE_LIMIT: "100"
+      EMBEDDING_TIMEOUT_MS: "30000"
+      # Nomic provider (port 8001 - primary)
+      NOMIC_ENDPOINT: http://dataops.trupryce.ai:8001
+      NOMIC_PREFIX: "search_document: "
+      # E5 provider (port 8000 - legacy fallback)
+      E5_ENDPOINT: http://dataops.trupryce.ai:8000
+      E5_PREFIX: "passage: "
+      # OpenAI provider (for Datadog LLM observability challenge)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: text-embedding-3-small
+      OPENAI_DIMENSIONS: "768"
       # Health
       HEALTH_PORT: 3000
     ports:
@@ -209,11 +220,11 @@ services:
       KAFKA_TOPIC_IN: lattice.mail.embed.v1
       KAFKA_TOPIC_OUT: lattice.mail.upsert.v1
       KAFKA_TOPIC_DLQ: lattice.dlq.mail.upsert.v1
-      # Milvus config
+      # Milvus config (768 dimensions to match Nomic/E5/OpenAI)
       MILVUS_HOST: milvus
       MILVUS_PORT: "19530"
       MILVUS_COLLECTION: email_chunks_v1
-      MILVUS_DIM: "384"
+      MILVUS_DIM: "768"
       MILVUS_INDEX_TYPE: HNSW
       MILVUS_HNSW_M: "16"
       MILVUS_HNSW_EF_CONSTRUCTION: "256"
@@ -275,7 +286,7 @@ services:
 
   # ==========================================================================
   # Attachment Chunker Worker
-  # Consumes: lattice.mail.attachment.extracted.v1
+  # Consumes: lattice.mail.attachment.text.v1
   # Produces: lattice.mail.chunk.v1
   # ==========================================================================
   attachment-chunker:
@@ -296,7 +307,7 @@ services:
       # Kafka topics
       KAFKA_CLIENT_ID: attachment-chunker
       KAFKA_GROUP_ID: attachment-chunker-group
-      KAFKA_TOPIC_IN: lattice.mail.attachment.extracted.v1
+      KAFKA_TOPIC_IN: lattice.mail.attachment.text.v1
       KAFKA_TOPIC_OUT: lattice.mail.chunk.v1
       KAFKA_TOPIC_DLQ: lattice.dlq.mail.attachment.chunk.v1
       # Chunking config
@@ -342,7 +353,7 @@ services:
       DD_VERSION: "0.1.0"
       # Lattice context
       LATTICE_DOMAIN: mail
-      LATTICE_STAGE: ocr-normalize
+      LATTICE_STAGE: extract
       # Kafka topics
       KAFKA_CLIENT_ID: mail-ocr-normalizer
       KAFKA_GROUP_ID: mail-ocr-normalizer-group

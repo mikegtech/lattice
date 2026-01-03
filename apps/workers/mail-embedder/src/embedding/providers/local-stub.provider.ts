@@ -17,7 +17,7 @@ import type {
 export class LocalStubEmbeddingProvider implements EmbeddingProvider {
 	readonly name = "local-stub";
 	readonly model = "local-stub-v1";
-	readonly dimensions = 384; // Common small embedding size
+	readonly dimensions = 768; // Match Nomic/E5 dimensions for consistency
 
 	/**
 	 * Generate a deterministic pseudo-embedding from text.

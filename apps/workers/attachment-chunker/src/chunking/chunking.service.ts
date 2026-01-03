@@ -144,6 +144,7 @@ export class ChunkingService {
 			const nextStart = breakPoint;
 			const overlapStart = Math.max(0, breakPoint - overlapChars);
 			const overlap = remaining.substring(overlapStart, breakPoint);
+
 			remaining = overlap + " " + remaining.substring(nextStart).trim();
 			remaining = remaining.trim();
 

@@ -30,13 +30,21 @@ export interface EnvelopeContext {
 	provider: string;
 }
 
-// MIME types that support text extraction
+// MIME types that support text extraction (including images for OCR)
 const EXTRACTABLE_MIME_TYPES = [
 	"application/pdf",
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	"text/plain",
 	"text/csv",
 	"text/markdown",
+	// Image types - sent to OCR
+	"image/jpeg",
+	"image/png",
+	"image/tiff",
+	"image/webp",
+	"image/heic",
+	"image/gif",
+	"image/bmp",
 ];
 
 @Injectable()
