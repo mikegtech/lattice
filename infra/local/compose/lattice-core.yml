@@ -239,3 +239,48 @@ volumes:
 networks:
   lattice-network:
     driver: bridge
+
+
+# timescaledb-vector:
+#     build:
+#       context: ./db
+#     container_name: pg-timescale-vector
+#     env_file:
+#       - .env
+#     environment:
+#       POSTGRES_USER: ${POSTGRES_USER}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#       POSTGRES_DB: ${POSTGRES_DB}
+#       PGDATA: /var/lib/postgresql/data/pgdata
+#     command:
+#       - "postgres"
+#       - "-c"
+#       - "shared_buffers=4GB"
+#       - "-c"
+#       - "work_mem=32MB"
+#       - "-c"
+#       - "maintenance_work_mem=2GB"
+#       - "-c"
+#       - "effective_cache_size=12GB"
+#       - "-c"
+#       - "random_page_cost=1.1"
+#       - "-c"
+#       - "max_wal_size=4GB"
+#       - "-c"
+#       - "checkpoint_completion_target=0.9"
+#       - "-c"
+#       - "wal_buffers=16MB"
+#       - "-c"
+#       - "default_statistics_target=100"
+#     ports:
+#       - "${PG_PORT}:5432"
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+#       interval: 5s
+#       timeout: 3s
+#       retries: 20
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
+#     networks:
+#       - lattice-network
+#     restart: unless-stopped

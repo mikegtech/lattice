@@ -219,6 +219,77 @@ attachment-chunker (unchanged)
 - Domain isolation: Each domain has its own normalizer filtering by `source.service`
 - Single input topic (`lattice.ocr.request.v1`) with fan-out via normalizers
 
+
+### Phase 12 – Real Embeddings (COMPLETE)
+
+#### Embedding Provider Abstraction
+- New package: `packages/embedding-providers/`
+- Factory pattern for runtime provider selection
+- Full Datadog telemetry on all providers
+
+#### Providers Implemented
+
+| Provider | Endpoint | Model | Dimensions | Context | Use Case |
+|----------|----------|-------|------------|---------|----------|
+| **nomic** (default) | `dataops.trupryce.ai:8001` | nomic-embed-text-v1.5 | 768 | 8,192 tokens | Primary |
+| **e5** | `dataops.trupryce.ai:8000` | e5-base-v2 | 768 | 512 tokens | Legacy |
+| **openai** | API | text-embedding-3-small | 768* | 8,191 tokens | Datadog challenge |
+| **vertex-ai** | API | text-embedding-004 | 768 | 2,048 tokens | Alternative |
+| **stub** | local | random vectors | configurable | - | Testing |
+
+*OpenAI configured to return 768 dimensions for Milvus compatibility
+
+#### Prefix Conventions (Critical for Search Quality)
+
+| Provider | Indexing (Documents) | Search (Queries) |
+|----------|---------------------|------------------|
+| Nomic | `search_document: ` | `search_query: ` |
+| E5 | `passage: ` | `query: ` |
+| OpenAI | none | none |
+
+#### Configuration
+
+```yaml
+# mail-embedder environment
+EMBEDDING_PROVIDER: nomic  # or e5, openai, vertex-ai, stub
+NOMIC_ENDPOINT: http://dataops.trupryce.ai:8001
+NOMIC_PREFIX: "search_document: "
+E5_ENDPOINT: http://dataops.trupryce.ai:8000
+E5_PREFIX: "passage: "
+```
+
+#### Telemetry Metrics
+
+```
+lattice.embedding.requests{provider, model, success}
+lattice.embedding.latency_ms{provider, model, stage}
+lattice.embedding.tokens{provider, model}
+lattice.embedding.batch_size{provider}
+lattice.embedding.cost_usd{provider, model}  # Cloud providers only
+```
+
+#### Milvus Collection: `email_chunks_v1`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pk` | VarChar (PK) | `{email_id}:{chunk_hash}:{embedding_version}` |
+| `tenant_id` | VarChar | Multi-tenant isolation |
+| `account_id` | VarChar | Email account identifier |
+| `email_id` | VarChar | Source email UUID |
+| `chunk_hash` | VarChar | Deterministic content hash |
+| `embedding_version` | VarChar | e.g., "v1" |
+| `embedding_model` | VarChar | e.g., "nomic-embed-text-v1.5" |
+| `section_type` | VarChar | header, body, attachment_text |
+| `email_timestamp` | Int64 | Unix epoch for filtering |
+| `vector` | FloatVector(768) | Embedding vector |
+
+**Index:** HNSW with COSINE similarity, M=16, efConstruction=256
+
+#### Verified Working
+- HOA document processed through full pipeline
+- 6 vectors in Milvus with `embedding_model: nomic-embed-text-v1.5`
+- Semantic search returns relevant results
+
 ---
 
 ---
@@ -262,6 +333,62 @@ During stabilization phase:
 ### OCR Service (`lattice-ocr.yml`) – Standalone
 - ocr-worker `:3108`
 
+### Embedding Services (External)
+- Nomic: `dataops.trupryce.ai:8001`
+- E5: `dataops.trupryce.ai:8000`
+
+---
+
+## Chunking Configuration
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| `CHUNK_TARGET_TOKENS` | 400 | Sweet spot (256-512 recommended) |
+| `CHUNK_OVERLAP_TOKENS` | 50 | 12.5% overlap for context |
+| `CHUNK_MAX_TOKENS` | 512 | Hard ceiling |
+| `CHUNKING_VERSION` | v1 | Idempotency key |
+| `NORMALIZATION_VERSION` | v1 | Idempotency key |
+
+---
+
+## Quick Verification Commands
+
+```bash
+# Check embedding services
+curl http://dataops.trupryce.ai:8001/health  # Nomic
+curl http://dataops.trupryce.ai:8000/health  # E5
+
+# Check Milvus vectors
+curl -s "http://localhost:9091/api/v1/collection/stats?collection_name=email_chunks_v1" | jq .
+
+# Test semantic search
+python3 << 'EOF'
+import requests
+from pymilvus import connections, Collection
+
+response = requests.post(
+    "http://dataops.trupryce.ai:8001/embed",
+    json={"texts": ["HOA assessment"], "prefix": "search_query: "}
+)
+query_vec = response.json()["embeddings"][0]
+
+connections.connect(host="localhost", port="19530")
+collection = Collection("email_chunks_v1")
+collection.load()
+
+results = collection.search(
+    data=[query_vec],
+    anns_field="vector",
+    param={"metric_type": "COSINE", "params": {"ef": 64}},
+    limit=5,
+    output_fields=["email_id", "section_type"]
+)
+
+for hits in results:
+    for hit in hits:
+        print(f"Score: {hit.score:.4f} | {hit.entity.get('section_type')}")
+EOF
+```
 ---
 
 ## Rehydration Instructions for AI Tools
