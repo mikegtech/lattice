@@ -1,7 +1,6 @@
 variable "gcp_project_id" {
   type        = string
-  description = "GCP project ID (used for state backend auth)"
-  default     = ""
+  description = "GCP project ID (required for state backend and Secret Manager)"
 }
 
 variable "gcp_region" {
