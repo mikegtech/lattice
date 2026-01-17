@@ -23,6 +23,7 @@ jobs:
     name: Terraform Validate
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    environment: confluent-production
 
     steps:
       - name: Checkout
@@ -45,10 +46,18 @@ jobs:
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
+        env:
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
+          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
+        env:
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
+          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
 
   terraform-plan:
     name: Terraform Plan
@@ -74,6 +83,10 @@ jobs:
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
+        env:
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
+          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -113,6 +126,10 @@ jobs:
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
+        env:
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
+          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
