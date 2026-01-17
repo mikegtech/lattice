@@ -11,7 +11,29 @@ gcp_project_id = "your-gcp-project-id"
 # GCP Region for Kafka cluster
 gcp_region = "us-south1"
 
-# Confluent Cloud environment and cluster names
+# =============================================================================
+# Control Plane Credentials (Confluent Cloud API)
+# =============================================================================
+# These secrets must exist in GCP Secret Manager before running terraform.
+# The Cloud API key is used by the Confluent provider for resource management.
+
+confluent_api_key_secret_name    = "confluent-cloud-api-key"  # pragma: allowlist secret
+confluent_api_secret_secret_name = "confluent-cloud-api-secret"  # pragma: allowlist secret
+
+# =============================================================================
+# Data Plane Credentials (CI Kafka API Key)
+# =============================================================================
+# These secrets must exist in GCP Secret Manager before running terraform.
+# The CI Kafka API key is used for topic and ACL management.
+# Owned by service account: lattice-ci-kafka
+
+ci_kafka_api_key_secret_name    = "lattice-ci-kafka-api-key"     # pragma: allowlist secret
+ci_kafka_api_secret_secret_name = "lattice-ci-kafka-api-secret"  # pragma: allowlist secret
+
+# =============================================================================
+# Confluent Cloud Configuration
+# =============================================================================
+
 confluent_environment_name = "lattice"
 kafka_cluster_name         = "lattice"
 
@@ -20,24 +42,9 @@ kafka_cluster_name         = "lattice"
 kafka_availability = "SINGLE_ZONE"
 
 # Partition configuration
-# Primary topics get more partitions for throughput
-# DLQ topics use fewer partitions (low volume)
 primary_partitions = 2
 dlq_partitions     = 1
 
 # Retention configuration (in milliseconds)
-# Primary topics: 7 days default
-# DLQ topics: 30 days (longer retention for investigation)
 primary_retention_ms = 604800000   # 7 days
 dlq_retention_ms     = 2592000000  # 30 days
-
-# =============================================================================
-# Sensitive Variables - Set via environment variables, NOT in this file!
-# =============================================================================
-#
-# export TF_VAR_confluent_cloud_api_key="your-key"      # pragma: allowlist secret
-# export TF_VAR_confluent_cloud_api_secret="your-secret" # pragma: allowlist secret
-#
-# Get these from Confluent Cloud Console → Settings → API Keys
-# The key must have CloudClusterAdmin permissions on the target cluster.
-# =============================================================================

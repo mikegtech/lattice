@@ -3,8 +3,8 @@
 # =============================================================================
 #
 # Design:
-# - CI uses Cloud resource management API key (bootstrap) passed via TF_VAR_*
-#   from GitHub Secrets. This key is NOT managed by Terraform.
+# - Control plane: Confluent Cloud API key from GCP Secret Manager (providers.tf)
+# - Data plane: CI Kafka API key from GCP Secret Manager (secrets.tf)
 # - Terraform manages worker service account + Kafka API key
 # - Worker Kafka API key secret is stored in GCP Secret Manager
 # - ACLs provide least-privilege access to specific topics
@@ -72,8 +72,8 @@ resource "confluent_kafka_acl" "worker_consumer_group" {
   permission    = "ALLOW"
 
   credentials {
-    key    = var.confluent_cloud_api_key
-    secret = var.confluent_cloud_api_secret
+    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
+    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
   }
 }
 
@@ -91,8 +91,8 @@ resource "confluent_kafka_acl" "worker_read_topics" {
   permission    = "ALLOW"
 
   credentials {
-    key    = var.confluent_cloud_api_key
-    secret = var.confluent_cloud_api_secret
+    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
+    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
   }
 }
 
@@ -110,8 +110,8 @@ resource "confluent_kafka_acl" "worker_write_topics" {
   permission    = "ALLOW"
 
   credentials {
-    key    = var.confluent_cloud_api_key
-    secret = var.confluent_cloud_api_secret
+    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
+    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
   }
 }
 
@@ -129,8 +129,8 @@ resource "confluent_kafka_acl" "worker_write_dlq" {
   permission    = "ALLOW"
 
   credentials {
-    key    = var.confluent_cloud_api_key
-    secret = var.confluent_cloud_api_secret
+    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
+    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
   }
 }
 
