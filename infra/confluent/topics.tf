@@ -32,10 +32,10 @@ resource "confluent_kafka_topic" "topics" {
     "retention.ms" = tostring(each.value.retention_ms)
   }
 
-  # Use CI Cloud API key (bootstrap) for topic management
-  # This key has CloudClusterAdmin permissions via Confluent Cloud Console
+  # Use CI Kafka API key (data plane) for topic management
+  # This key is owned by lattice-ci-kafka service account
   credentials {
-    key    = var.confluent_cloud_api_key
-    secret = var.confluent_cloud_api_secret
+    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
+    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
   }
 }

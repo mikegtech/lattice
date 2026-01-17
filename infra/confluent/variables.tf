@@ -8,16 +8,34 @@ variable "gcp_region" {
   default = "us-south1"
 }
 
-variable "confluent_cloud_api_key" {
+# -----------------------------------------------------------------------------
+# Control Plane Credentials (Confluent Cloud API)
+# -----------------------------------------------------------------------------
+
+variable "confluent_api_key_secret_name" {
   type        = string
-  description = "Confluent Cloud API Key (passed from GitHub Secrets)"
-  sensitive   = true
+  description = "Secret Manager secret name for Confluent Cloud API key (control plane)"
 }
 
-variable "confluent_cloud_api_secret" {
+variable "confluent_api_secret_secret_name" {
   type        = string
-  description = "Confluent Cloud API Secret (passed from GitHub Secrets)"
-  sensitive   = true
+  description = "Secret Manager secret name for Confluent Cloud API secret (control plane)"
+}
+
+# -----------------------------------------------------------------------------
+# Data Plane Credentials (CI Kafka API Key)
+# -----------------------------------------------------------------------------
+
+variable "ci_kafka_api_key_secret_name" {
+  type        = string
+  description = "Secret Manager secret name for CI Kafka API key (data plane)"
+  default     = "lattice-ci-kafka-api-key"
+}
+
+variable "ci_kafka_api_secret_secret_name" {
+  type        = string
+  description = "Secret Manager secret name for CI Kafka API secret (data plane)"
+  default     = "lattice-ci-kafka-api-secret"
 }
 
 variable "confluent_environment_name" {

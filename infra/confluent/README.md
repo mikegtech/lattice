@@ -7,20 +7,22 @@ Terraform configuration for Lattice Kafka infrastructure on Confluent Cloud (GCP
 - **Environment**: `lattice`
 - **Cluster**: Basic tier, single-zone (GCP us-south1)
 - **Topics**: All Lattice Kafka topics with per-topic DLQs
-- **Authentication**: Bootstrap Cloud API key + worker Kafka API key
+- **Authentication**: All credentials from GCP Secret Manager
 - **Backend**: GCS bucket for state management
 
-### Identity Model
+### Credential Model (Two Planes)
 
-| Identity | Purpose | How Managed |
-|----------|---------|-------------|
-| Bootstrap (CI) | Cloud resource management API key | Created manually in Confluent Cloud Console, stored in GitHub Secrets |
-| Worker | Kafka API key for workers | Created by Terraform, stored in GCP Secret Manager |
+| Plane | Purpose | Secret Manager Keys | Service Account |
+|-------|---------|---------------------|-----------------|
+| **Control Plane** | Confluent Cloud API (resource management) | `confluent-cloud-api-key`, `confluent-cloud-api-secret` | Cloud resource management |
+| **Data Plane** | Kafka operations (topics, ACLs) | `lattice-ci-kafka-api-key`, `lattice-ci-kafka-api-secret` | `lattice-ci-kafka` |
+| **Worker** | Runtime Kafka access | `lattice-worker-kafka-api-key`, `lattice-worker-kafka-api-secret` | `lattice-worker` |
 
 **Design Rationale:**
-- ONE bootstrap identity (CI) with Cloud API key for Terraform operations
-- Worker identity with Kafka API key scoped to topic-level ACLs
-- All secrets created by Terraform are immediately written to GCP Secret Manager
+- All credentials stored in GCP Secret Manager (no TF_VAR secrets)
+- Control plane key for Confluent provider authentication
+- CI Kafka key for topic and ACL management (data plane operations)
+- Worker key created by Terraform and persisted to Secret Manager
 
 ## Topics
 
@@ -58,17 +60,21 @@ Terraform configuration for Lattice Kafka infrastructure on Confluent Cloud (GCP
 
 ## Prerequisites
 
-### 1. Bootstrap Cloud API Key (Manual Setup)
+### 1. GCP Secret Manager Setup
 
-Create a Cloud resource management API key in Confluent Cloud Console:
+Create these secrets in GCP Secret Manager before running Terraform:
 
-1. Go to Confluent Cloud Console → Settings → API Keys
-2. Click "Add key" → Select "Granular access"
-3. Create or select a service account (e.g., `lattice-ci`)
-4. Grant CloudClusterAdmin role on the target cluster
-5. Save the key and secret securely
+```bash
+# Control Plane: Confluent Cloud API credentials
+# Get from: Confluent Cloud Console → Settings → API Keys → Cloud resource management
+echo -n "YOUR_CLOUD_API_KEY" | gcloud secrets create confluent-cloud-api-key --data-file=-
+echo -n "YOUR_CLOUD_API_SECRET" | gcloud secrets create confluent-cloud-api-secret --data-file=-
 
-**This key is used by Terraform to manage Confluent resources.**
+# Data Plane: CI Kafka API credentials
+# Get from: Confluent Cloud Console → Cluster → API Keys → Create for lattice-ci-kafka service account
+echo -n "YOUR_CI_KAFKA_KEY" | gcloud secrets create lattice-ci-kafka-api-key --data-file=-
+echo -n "YOUR_CI_KAFKA_SECRET" | gcloud secrets create lattice-ci-kafka-api-secret --data-file=-
+```
 
 ### 2. GitHub Secrets
 
@@ -78,13 +84,23 @@ Configure these secrets in your GitHub repository settings (under the `confluent
 |--------|-------------|
 | `GCP_SA_KEY` | GCP service account JSON with GCS + Secret Manager access |
 | `GCP_PROJECT_ID` | GCP project ID |
-| `CONFLUENT_CLOUD_API_KEY` | Bootstrap Cloud API Key (from step 1) |
-| `CONFLUENT_CLOUD_API_SECRET` | Bootstrap Cloud API Secret (from step 1) |
 | `DATADOG_API_KEY` | (Optional) For deployment event notifications |
+
+**Note:** Confluent credentials are NO longer passed via GitHub Secrets. They are read from GCP Secret Manager.
 
 ### 3. GitHub Environment
 
 Create a `confluent-production` environment in GitHub repository settings for deployment protection rules.
+
+## Required Terraform Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `gcp_project_id` | GCP project ID | Yes |
+| `confluent_api_key_secret_name` | Secret Manager name for Cloud API key | Yes |
+| `confluent_api_secret_secret_name` | Secret Manager name for Cloud API secret | Yes |
+| `ci_kafka_api_key_secret_name` | Secret Manager name for CI Kafka key | No (default: `lattice-ci-kafka-api-key`) |
+| `ci_kafka_api_secret_secret_name` | Secret Manager name for CI Kafka secret | No (default: `lattice-ci-kafka-api-secret`) |
 
 ## Worker Credentials
 
@@ -125,12 +141,7 @@ cd infra/confluent
 
 # Copy and configure variables
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
-
-# Set Confluent credentials as environment variables
-export TF_VAR_confluent_cloud_api_key="your-api-key"  # pragma: allowlist secret
-export TF_VAR_confluent_cloud_api_secret="your-api-secret"  # pragma: allowlist secret
-export TF_VAR_gcp_project_id="your-gcp-project"
+# Edit terraform.tfvars with your Secret Manager secret names
 
 # Authenticate to GCP (for state backend + Secret Manager)
 gcloud auth application-default login
@@ -154,8 +165,6 @@ terraform apply
 # View outputs (no secrets exposed)
 terraform output
 ```
-
-**Note:** Never commit Confluent credentials to git. Always use environment variables.
 
 ## Importing Existing Resources
 
@@ -202,10 +211,6 @@ confluent kafka topic list --cluster lkc-xxxxx
 
 1. **Create new API key** (Terraform will do this on apply if key is deleted):
    ```bash
-   # Delete current key version in Secret Manager (optional, keeps history)
-   gcloud secrets versions disable latest --secret=lattice-worker-kafka-api-key
-   gcloud secrets versions disable latest --secret=lattice-worker-kafka-api-secret
-
    # Taint the Terraform resource to force recreation
    terraform taint confluent_api_key.worker
 
@@ -217,11 +222,27 @@ confluent kafka topic list --cluster lkc-xxxxx
 
 3. **Delete old API key** in Confluent Cloud Console after workers are updated
 
-### Rotating Bootstrap (CI) API Key
+### Rotating CI Kafka API Key
+
+1. Create new Kafka API key in Confluent Cloud Console for `lattice-ci-kafka` service account
+2. Update GCP Secret Manager:
+   ```bash
+   echo -n "NEW_KEY" | gcloud secrets versions add lattice-ci-kafka-api-key --data-file=-
+   echo -n "NEW_SECRET" | gcloud secrets versions add lattice-ci-kafka-api-secret --data-file=-
+   ```
+3. Re-run `terraform apply` to use new credentials
+4. Delete old API key in Confluent Cloud Console
+
+### Rotating Control Plane API Key
 
 1. Create new Cloud API key in Confluent Cloud Console
-2. Update GitHub Secrets with new values
-3. Delete old API key in Confluent Cloud Console
+2. Update GCP Secret Manager:
+   ```bash
+   echo -n "NEW_KEY" | gcloud secrets versions add confluent-cloud-api-key --data-file=-
+   echo -n "NEW_SECRET" | gcloud secrets versions add confluent-cloud-api-secret --data-file=-
+   ```
+3. Re-run `terraform apply` to verify
+4. Delete old API key in Confluent Cloud Console
 
 ## Drift Detection
 
@@ -260,7 +281,10 @@ The GitHub Actions workflow (`terraform-confluent.yml`) runs:
 # Verify GCP authentication
 gcloud auth application-default print-access-token
 
-# Verify Confluent credentials
+# Verify Secret Manager access
+gcloud secrets versions access latest --secret=confluent-cloud-api-key
+
+# Verify Confluent CLI access
 confluent login --save
 confluent environment list
 ```
@@ -271,8 +295,11 @@ confluent environment list
 # Check Secret Manager permissions
 gcloud secrets list --project=YOUR_PROJECT_ID
 
-# Verify secret exists
-gcloud secrets describe lattice-worker-kafka-api-key --project=YOUR_PROJECT_ID
+# Verify all required secrets exist
+for secret in confluent-cloud-api-key confluent-cloud-api-secret \
+              lattice-ci-kafka-api-key lattice-ci-kafka-api-secret; do
+  gcloud secrets describe $secret --project=YOUR_PROJECT_ID
+done
 ```
 
 ### ACL Issues
