@@ -46,26 +46,22 @@ Terraform configuration for Lattice Kafka infrastructure on Confluent Cloud (GCP
 
 ## Prerequisites
 
-### GCP Secret Manager
+### Confluent Cloud API Keys
 
-Create these secrets in GCP Secret Manager before running Terraform:
-
-```bash
-# Confluent Cloud API credentials (from Confluent Cloud Console → API Keys)
-gcloud secrets create confluent-cloud-api-key --data-file=-
-gcloud secrets create confluent-cloud-api-secret --data-file=-
-```
+Create API keys in the Confluent Cloud Console:
+1. Go to Confluent Cloud Console → API Keys
+2. Create a Cloud API key (not a Kafka API key)
+3. Save the key and secret securely
 
 ### GitHub Secrets
 
-Configure these secrets in your GitHub repository settings:
+Configure these secrets in your GitHub repository settings (under the `confluent-production` environment):
 
 | Secret | Description |
 |--------|-------------|
-| `GCP_SA_KEY` | GCP service account JSON key with Secret Manager access |
-| `GCP_PROJECT_ID` | GCP project ID |
-| `CONFLUENT_API_KEY_SECRET_NAME` | Name of the Secret Manager secret for Confluent API key |
-| `CONFLUENT_API_SECRET_SECRET_NAME` | Name of the Secret Manager secret for Confluent API secret |
+| `GCP_SA_KEY` | GCP service account JSON key with GCS access for state backend |
+| `CONFLUENT_CLOUD_API_KEY` | Confluent Cloud API Key (from Confluent Cloud Console) |
+| `CONFLUENT_CLOUD_API_SECRET` | Confluent Cloud API Secret (from Confluent Cloud Console) |
 | `DATADOG_API_KEY` | (Optional) For deployment event notifications |
 
 ### GitHub Environment
@@ -83,7 +79,11 @@ cd infra/confluent
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values
 
-# Authenticate to GCP
+# Set Confluent credentials as environment variables
+export TF_VAR_confluent_cloud_api_key="your-api-key"  # pragma: allowlist secret
+export TF_VAR_confluent_cloud_api_secret="your-api-secret"  # pragma: allowlist secret
+
+# Authenticate to GCP (for state backend)
 gcloud auth application-default login
 
 # Initialize Terraform
@@ -106,6 +106,8 @@ terraform apply
 terraform output
 terraform output -raw api_key_worker_secret  # Sensitive value
 ```
+
+**Note:** Never commit Confluent credentials to git. Always use environment variables or a secrets manager.
 
 ### Importing Existing Resources
 

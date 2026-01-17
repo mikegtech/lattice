@@ -48,16 +48,16 @@ jobs:
         run: terraform init
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
   terraform-plan:
     name: Terraform Plan
@@ -85,16 +85,16 @@ jobs:
         run: terraform init
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -no-color -out=tfplan
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
       - name: Upload Plan
         uses: actions/upload-artifact@v4
@@ -128,24 +128,24 @@ jobs:
         run: terraform init
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -no-color -out=tfplan
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve tfplan
         env:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-          TF_VAR_confluent_api_key_secret_name: ${{ secrets.CONFLUENT_API_KEY_SECRET_NAME }}
-          TF_VAR_confluent_api_secret_secret_name: ${{ secrets.CONFLUENT_API_SECRET_SECRET_NAME }}
+          TF_VAR_confluent_cloud_api_key: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+          TF_VAR_confluent_cloud_api_secret: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
 
       - name: Send Success Event to Datadog
         if: success() && vars.DATADOG_EVENTS_ENABLED == 'true'

@@ -1,5 +1,7 @@
 variable "gcp_project_id" {
-  type = string
+  type        = string
+  description = "GCP project ID (used for state backend auth)"
+  default     = ""
 }
 
 variable "gcp_region" {
@@ -7,14 +9,16 @@ variable "gcp_region" {
   default = "us-south1"
 }
 
-variable "confluent_api_key_secret_name" {
+variable "confluent_cloud_api_key" {
   type        = string
-  description = "Secret Manager secret name containing Confluent Cloud API Key"
+  description = "Confluent Cloud API Key (passed from GitHub Secrets)"
+  sensitive   = true
 }
 
-variable "confluent_api_secret_secret_name" {
+variable "confluent_cloud_api_secret" {
   type        = string
-  description = "Secret Manager secret name containing Confluent Cloud API Secret"
+  description = "Confluent Cloud API Secret (passed from GitHub Secrets)"
+  sensitive   = true
 }
 
 variable "confluent_environment_name" {

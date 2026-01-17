@@ -11,10 +11,12 @@ gcp_project_id = "your-gcp-project-id"
 # GCP Region for Kafka cluster
 gcp_region = "us-east1"
 
-# Secret Manager secret names containing Confluent Cloud credentials
-# These secrets must exist in GCP Secret Manager before running terraform
-confluent_api_key_secret_name    = "confluent-cloud-api-key"      # pragma: allowlist secret
-confluent_api_secret_secret_name = "confluent-cloud-api-secret"   # pragma: allowlist secret
+# Confluent Cloud API credentials
+# Get these from Confluent Cloud Console -> API Keys
+# In CI/CD, these are passed via TF_VAR_* from GitHub Secrets
+# For local development, set via environment variables or uncomment below
+# confluent_cloud_api_key    = ""  # pragma: allowlist secret
+# confluent_cloud_api_secret = ""  # pragma: allowlist secret
 
 # Confluent Cloud environment and cluster names
 confluent_environment_name = "lattice"
