@@ -228,4 +228,5 @@ TOPIC_MAIL_CHUNK = "lattice.mail.chunk.v1"
 TOPIC_MAIL_EMBED = "lattice.mail.embed.v1"
 TOPIC_MAIL_UPSERT = "lattice.mail.upsert.v1"
 TOPIC_MAIL_DELETE = "lattice.mail.delete.v1"
-TOPIC_MAIL_DLQ = "lattice.mail.dlq.v1"
+# Note: DLQ topics use per-topic naming: lattice.dlq.mail.<stage>.v1
+# Workers configure DLQ via KAFKA_TOPIC_DLQ environment variable

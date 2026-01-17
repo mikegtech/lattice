@@ -134,8 +134,8 @@ lattice/
 | `lattice.mail.embed.v1` | Chunks with embeddings |
 | `lattice.mail.upsert.v1` | Milvus upsert confirmations |
 | `lattice.mail.delete.v1` | Deletion requests |
-| `lattice.mail.dlq.v1` | Dead letter queue |
 | `lattice.audit.events.v1` | Audit trail |
+| `lattice.dlq.mail.<stage>.v1` | Per-topic dead letter queues |
 
 ## Development
 
