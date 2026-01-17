@@ -1,0 +1,37 @@
+# =============================================================================
+# Confluent Cloud Terraform Variables Example
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in the values
+# DO NOT commit terraform.tfvars to git (it's in .gitignore)
+# =============================================================================
+
+# GCP Project ID for Secret Manager access
+gcp_project_id = "your-gcp-project-id"
+
+# GCP Region for Kafka cluster
+gcp_region = "us-east1"
+
+# Secret Manager secret names containing Confluent Cloud credentials
+# These secrets must exist in GCP Secret Manager before running terraform
+confluent_api_key_secret_name    = "confluent-cloud-api-key"      # pragma: allowlist secret
+confluent_api_secret_secret_name = "confluent-cloud-api-secret"   # pragma: allowlist secret
+
+# Confluent Cloud environment and cluster names
+confluent_environment_name = "lattice"
+kafka_cluster_name         = "lattice"
+
+# Cluster availability zone configuration
+# SINGLE_ZONE for development, MULTI_ZONE for production
+kafka_availability = "SINGLE_ZONE"
+
+# Partition configuration
+# Primary topics get more partitions for throughput
+# DLQ topics use fewer partitions (low volume)
+primary_partitions = 2
+dlq_partitions     = 1
+
+# Retention configuration (in milliseconds)
+# Primary topics: 7 days default
+# DLQ topics: 30 days (longer retention for investigation)
+primary_retention_ms = 604800000   # 7 days
+dlq_retention_ms     = 2592000000  # 30 days
