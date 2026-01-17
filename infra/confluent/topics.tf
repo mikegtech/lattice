@@ -32,13 +32,10 @@ resource "confluent_kafka_topic" "topics" {
     "retention.ms" = tostring(each.value.retention_ms)
   }
 
-  # Required credentials for topic management on Basic cluster
+  # Use CI Cloud API key (bootstrap) for topic management
+  # This key has CloudClusterAdmin permissions via Confluent Cloud Console
   credentials {
-    key    = confluent_api_key.app_manager.id
-    secret = confluent_api_key.app_manager.secret
+    key    = var.confluent_cloud_api_key
+    secret = var.confluent_cloud_api_secret
   }
-
-  depends_on = [
-    confluent_role_binding.app_manager_cluster_admin
-  ]
 }
