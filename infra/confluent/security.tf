@@ -224,7 +224,7 @@ resource "google_secret_manager_secret" "worker_kafka_api_secret" {
 
 # Local to get the secret ID regardless of whether it was created or already existed
 locals {
-  worker_kafka_api_key_secret_id = local.worker_api_key_secret_exists ? data.google_secret_manager_secret.worker_kafka_api_key_existing[0].id : google_secret_manager_secret.worker_kafka_api_key[0].id
+  worker_kafka_api_key_secret_id    = local.worker_api_key_secret_exists ? data.google_secret_manager_secret.worker_kafka_api_key_existing[0].id : google_secret_manager_secret.worker_kafka_api_key[0].id
   worker_kafka_api_secret_secret_id = local.worker_api_secret_secret_exists ? data.google_secret_manager_secret.worker_kafka_api_secret_existing[0].id : google_secret_manager_secret.worker_kafka_api_secret[0].id
 }
 
