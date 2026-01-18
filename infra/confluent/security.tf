@@ -10,7 +10,63 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Service Account
+# CI Kafka Service Account (for Terraform data-plane operations)
+# -----------------------------------------------------------------------------
+# This service account owns the API key used for topic and ACL management.
+# Terraform fully manages this lifecycle - no manual key creation needed.
+# -----------------------------------------------------------------------------
+
+resource "confluent_service_account" "ci_kafka" {
+  display_name = "lattice-ci-kafka"
+  description  = "Service account for Terraform CI/CD Kafka operations (topics, ACLs)"
+}
+
+# -----------------------------------------------------------------------------
+# CI Kafka API Key (Terraform-managed)
+# -----------------------------------------------------------------------------
+# This key is used for ALL Kafka data-plane operations in Terraform:
+# - Topic creation/management
+# - ACL management
+# The key is always valid for the current cluster (created or looked up).
+# -----------------------------------------------------------------------------
+
+resource "confluent_api_key" "ci_kafka" {
+  display_name = "lattice-ci-kafka-api-key"
+  description  = "Kafka API key for Terraform CI/CD operations"
+
+  owner {
+    id          = confluent_service_account.ci_kafka.id
+    api_version = confluent_service_account.ci_kafka.api_version
+    kind        = confluent_service_account.ci_kafka.kind
+  }
+
+  managed_resource {
+    id          = local.kafka_cluster_id
+    api_version = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].api_version : confluent_kafka_cluster.this[0].api_version
+    kind        = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].kind : confluent_kafka_cluster.this[0].kind
+
+    environment {
+      id = local.environment_id
+    }
+  }
+
+  # Force recreation when rotation is requested
+  lifecycle {
+    replace_triggered_by = [
+      null_resource.ci_kafka_api_key_rotation_trigger
+    ]
+  }
+}
+
+# Null resource to trigger CI Kafka API key rotation
+resource "null_resource" "ci_kafka_api_key_rotation_trigger" {
+  triggers = {
+    rotate = var.rotate_ci_kafka_api_key ? timestamp() : "stable"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Worker Service Account
 # -----------------------------------------------------------------------------
 
 # Lookup existing service account if ID provided
@@ -26,7 +82,7 @@ resource "confluent_service_account" "worker" {
   description  = "Service account for Lattice Kafka workers"
 }
 
-# Local references for service account
+# Local references for worker service account
 locals {
   use_existing_service_account       = var.existing_service_account_id != ""
   worker_service_account_id          = local.use_existing_service_account ? data.confluent_service_account.existing[0].id : confluent_service_account.worker[0].id
@@ -61,7 +117,7 @@ resource "confluent_api_key" "worker" {
   # Force recreation when rotation is requested
   lifecycle {
     replace_triggered_by = [
-      null_resource.api_key_rotation_trigger
+      null_resource.worker_api_key_rotation_trigger
     ]
   }
 
@@ -73,8 +129,8 @@ resource "confluent_api_key" "worker" {
   ]
 }
 
-# Null resource to trigger API key rotation
-resource "null_resource" "api_key_rotation_trigger" {
+# Null resource to trigger worker API key rotation
+resource "null_resource" "worker_api_key_rotation_trigger" {
   triggers = {
     rotate = var.rotate_worker_api_key ? timestamp() : "stable"
   }
@@ -82,6 +138,8 @@ resource "null_resource" "api_key_rotation_trigger" {
 
 # -----------------------------------------------------------------------------
 # Kafka ACLs - Least Privilege for Workers
+# -----------------------------------------------------------------------------
+# Note: ACLs use the Terraform-managed CI Kafka API key for authentication.
 # -----------------------------------------------------------------------------
 
 # Worker can use consumer groups with prefix "lattice-"
@@ -99,8 +157,8 @@ resource "confluent_kafka_acl" "worker_consumer_group" {
   rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
-    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
-    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
+    key    = confluent_api_key.ci_kafka.id
+    secret = confluent_api_key.ci_kafka.secret
   }
 }
 
@@ -119,8 +177,8 @@ resource "confluent_kafka_acl" "worker_read_topics" {
   rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
-    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
-    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
+    key    = confluent_api_key.ci_kafka.id
+    secret = confluent_api_key.ci_kafka.secret
   }
 }
 
@@ -139,8 +197,8 @@ resource "confluent_kafka_acl" "worker_write_topics" {
   rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
-    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
-    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
+    key    = confluent_api_key.ci_kafka.id
+    secret = confluent_api_key.ci_kafka.secret
   }
 }
 
@@ -159,16 +217,90 @@ resource "confluent_kafka_acl" "worker_write_dlq" {
   rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
-    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
-    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
+    key    = confluent_api_key.ci_kafka.id
+    secret = confluent_api_key.ci_kafka.secret
   }
 }
 
 # -----------------------------------------------------------------------------
-# GCP Secret Manager - Store Worker Kafka Credentials
+# GCP Secret Manager - CI Kafka Credentials
 # -----------------------------------------------------------------------------
-# Secrets are created once and versions are added for each API key.
-# Uses data sources to check if secrets exist, creates if not.
+# Persists CI Kafka API key to Secret Manager for external reference.
+# Uses "check if exists → create if not → always add new version" pattern.
+# -----------------------------------------------------------------------------
+
+# Check if CI Kafka secrets already exist
+data "google_secret_manager_secret" "ci_kafka_api_key_existing" {
+  count     = 1
+  secret_id = "lattice-ci-kafka-api-key"
+  project   = var.gcp_project_id
+}
+
+data "google_secret_manager_secret" "ci_kafka_api_secret_existing" {
+  count     = 1
+  secret_id = "lattice-ci-kafka-api-secret"
+  project   = var.gcp_project_id
+}
+
+locals {
+  ci_kafka_api_key_secret_exists    = try(data.google_secret_manager_secret.ci_kafka_api_key_existing[0].id, "") != ""
+  ci_kafka_api_secret_secret_exists = try(data.google_secret_manager_secret.ci_kafka_api_secret_existing[0].id, "") != ""
+}
+
+# Secret for CI Kafka API key ID - only create if doesn't exist
+resource "google_secret_manager_secret" "ci_kafka_api_key" {
+  count     = local.ci_kafka_api_key_secret_exists ? 0 : 1
+  secret_id = "lattice-ci-kafka-api-key"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    managed-by = "terraform"
+    service    = "confluent"
+    component  = "ci-kafka"
+  }
+}
+
+# Secret for CI Kafka API secret - only create if doesn't exist
+resource "google_secret_manager_secret" "ci_kafka_api_secret" {
+  count     = local.ci_kafka_api_secret_secret_exists ? 0 : 1
+  secret_id = "lattice-ci-kafka-api-secret"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    managed-by = "terraform"
+    service    = "confluent"
+    component  = "ci-kafka"
+  }
+}
+
+locals {
+  ci_kafka_api_key_secret_id    = local.ci_kafka_api_key_secret_exists ? data.google_secret_manager_secret.ci_kafka_api_key_existing[0].id : google_secret_manager_secret.ci_kafka_api_key[0].id
+  ci_kafka_api_secret_secret_id = local.ci_kafka_api_secret_secret_exists ? data.google_secret_manager_secret.ci_kafka_api_secret_existing[0].id : google_secret_manager_secret.ci_kafka_api_secret[0].id
+}
+
+# Always add new version with the current CI Kafka API key value
+resource "google_secret_manager_secret_version" "ci_kafka_api_key" {
+  secret      = local.ci_kafka_api_key_secret_id
+  secret_data = confluent_api_key.ci_kafka.id
+}
+
+resource "google_secret_manager_secret_version" "ci_kafka_api_secret" {
+  secret      = local.ci_kafka_api_secret_secret_id
+  secret_data = confluent_api_key.ci_kafka.secret
+}
+
+# -----------------------------------------------------------------------------
+# GCP Secret Manager - Worker Kafka Credentials
+# -----------------------------------------------------------------------------
+# Persists worker Kafka API key to Secret Manager for runtime use.
 # -----------------------------------------------------------------------------
 
 # Check if worker secrets already exist
@@ -184,7 +316,6 @@ data "google_secret_manager_secret" "worker_kafka_api_secret_existing" {
   project   = var.gcp_project_id
 }
 
-# Locals to determine if secrets exist
 locals {
   worker_api_key_secret_exists    = try(data.google_secret_manager_secret.worker_kafka_api_key_existing[0].id, "") != ""
   worker_api_secret_secret_exists = try(data.google_secret_manager_secret.worker_kafka_api_secret_existing[0].id, "") != ""
@@ -224,13 +355,12 @@ resource "google_secret_manager_secret" "worker_kafka_api_secret" {
   }
 }
 
-# Local to get the secret ID regardless of whether it was created or already existed
 locals {
   worker_kafka_api_key_secret_id    = local.worker_api_key_secret_exists ? data.google_secret_manager_secret.worker_kafka_api_key_existing[0].id : google_secret_manager_secret.worker_kafka_api_key[0].id
   worker_kafka_api_secret_secret_id = local.worker_api_secret_secret_exists ? data.google_secret_manager_secret.worker_kafka_api_secret_existing[0].id : google_secret_manager_secret.worker_kafka_api_secret[0].id
 }
 
-# Always add new version with the current API key value
+# Always add new version with the current worker API key value
 resource "google_secret_manager_secret_version" "worker_kafka_api_key" {
   secret      = local.worker_kafka_api_key_secret_id
   secret_data = confluent_api_key.worker.id
