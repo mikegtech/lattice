@@ -8,22 +8,22 @@
 
 output "confluent_environment_id" {
   description = "Confluent Cloud environment ID"
-  value       = confluent_environment.this.id
+  value       = local.environment_id
 }
 
 output "kafka_cluster_id" {
   description = "Kafka cluster ID"
-  value       = confluent_kafka_cluster.this.id
+  value       = local.kafka_cluster_id
 }
 
 output "kafka_bootstrap_endpoint" {
   description = "Kafka bootstrap endpoint for client connections"
-  value       = confluent_kafka_cluster.this.bootstrap_endpoint
+  value       = local.kafka_bootstrap_endpoint
 }
 
 output "kafka_rest_endpoint" {
   description = "Kafka REST endpoint"
-  value       = confluent_kafka_cluster.this.rest_endpoint
+  value       = local.kafka_rest_endpoint
 }
 
 # -----------------------------------------------------------------------------

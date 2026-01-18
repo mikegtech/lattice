@@ -2,38 +2,36 @@
 # Confluent Cloud Service Accounts and Access Control
 # =============================================================================
 #
-# Design:
-# - Control plane: Confluent Cloud API key from GCP Secret Manager (providers.tf)
-# - Data plane: CI Kafka API key from GCP Secret Manager (secrets.tf)
-# - Terraform manages worker service account + Kafka API key
-# - Worker Kafka API key secret is stored in GCP Secret Manager
-# - ACLs provide least-privilege access to specific topics
+# Uses "Lookup First" pattern for service accounts:
+# - If existing_service_account_id is provided, use data source
+# - If empty, create new service account
+# - Locals provide consistent reference
 #
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Service Accounts
+# Service Account
 # -----------------------------------------------------------------------------
 
-# Data source for existing service account (used when importing)
-data "confluent_service_account" "worker" {
-  count = var.import_existing_service_account ? 1 : 0
+# Lookup existing service account if ID provided
+data "confluent_service_account" "existing" {
+  count = var.existing_service_account_id != "" ? 1 : 0
   id    = var.existing_service_account_id
 }
 
-# Worker service account - shared by all workers
-# Only create if not importing existing
+# Create new service account if no existing ID
 resource "confluent_service_account" "worker" {
-  count        = var.import_existing_service_account ? 0 : 1
+  count        = var.existing_service_account_id == "" ? 1 : 0
   display_name = "lattice-worker"
   description  = "Service account for Lattice Kafka workers"
 }
 
-# Local to reference the service account regardless of whether it's imported or created
+# Local references for service account
 locals {
-  worker_service_account_id          = var.import_existing_service_account ? data.confluent_service_account.worker[0].id : confluent_service_account.worker[0].id
-  worker_service_account_api_version = var.import_existing_service_account ? data.confluent_service_account.worker[0].api_version : confluent_service_account.worker[0].api_version
-  worker_service_account_kind        = var.import_existing_service_account ? data.confluent_service_account.worker[0].kind : confluent_service_account.worker[0].kind
+  use_existing_service_account       = var.existing_service_account_id != ""
+  worker_service_account_id          = local.use_existing_service_account ? data.confluent_service_account.existing[0].id : confluent_service_account.worker[0].id
+  worker_service_account_api_version = local.use_existing_service_account ? data.confluent_service_account.existing[0].api_version : confluent_service_account.worker[0].api_version
+  worker_service_account_kind        = local.use_existing_service_account ? data.confluent_service_account.existing[0].kind : confluent_service_account.worker[0].kind
 }
 
 # -----------------------------------------------------------------------------
@@ -51,12 +49,12 @@ resource "confluent_api_key" "worker" {
   }
 
   managed_resource {
-    id          = confluent_kafka_cluster.this.id
-    api_version = confluent_kafka_cluster.this.api_version
-    kind        = confluent_kafka_cluster.this.kind
+    id          = local.kafka_cluster_id
+    api_version = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].api_version : confluent_kafka_cluster.this[0].api_version
+    kind        = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].kind : confluent_kafka_cluster.this[0].kind
 
     environment {
-      id = confluent_environment.this.id
+      id = local.environment_id
     }
   }
 
@@ -89,7 +87,7 @@ resource "null_resource" "api_key_rotation_trigger" {
 # Worker can use consumer groups with prefix "lattice-"
 resource "confluent_kafka_acl" "worker_consumer_group" {
   kafka_cluster {
-    id = confluent_kafka_cluster.this.id
+    id = local.kafka_cluster_id
   }
   resource_type = "GROUP"
   resource_name = "lattice-"
@@ -98,6 +96,7 @@ resource "confluent_kafka_acl" "worker_consumer_group" {
   host          = "*"
   operation     = "READ"
   permission    = "ALLOW"
+  rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
     key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
@@ -108,7 +107,7 @@ resource "confluent_kafka_acl" "worker_consumer_group" {
 # Worker can read from all lattice.* topics (primary topics)
 resource "confluent_kafka_acl" "worker_read_topics" {
   kafka_cluster {
-    id = confluent_kafka_cluster.this.id
+    id = local.kafka_cluster_id
   }
   resource_type = "TOPIC"
   resource_name = "lattice."
@@ -117,6 +116,7 @@ resource "confluent_kafka_acl" "worker_read_topics" {
   host          = "*"
   operation     = "READ"
   permission    = "ALLOW"
+  rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
     key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
@@ -127,7 +127,7 @@ resource "confluent_kafka_acl" "worker_read_topics" {
 # Worker can write to all lattice.* topics (output topics)
 resource "confluent_kafka_acl" "worker_write_topics" {
   kafka_cluster {
-    id = confluent_kafka_cluster.this.id
+    id = local.kafka_cluster_id
   }
   resource_type = "TOPIC"
   resource_name = "lattice."
@@ -136,6 +136,7 @@ resource "confluent_kafka_acl" "worker_write_topics" {
   host          = "*"
   operation     = "WRITE"
   permission    = "ALLOW"
+  rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
     key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
@@ -146,7 +147,7 @@ resource "confluent_kafka_acl" "worker_write_topics" {
 # Worker can write to DLQ topics (lattice.dlq.*)
 resource "confluent_kafka_acl" "worker_write_dlq" {
   kafka_cluster {
-    id = confluent_kafka_cluster.this.id
+    id = local.kafka_cluster_id
   }
   resource_type = "TOPIC"
   resource_name = "lattice.dlq."
@@ -155,6 +156,7 @@ resource "confluent_kafka_acl" "worker_write_dlq" {
   host          = "*"
   operation     = "WRITE"
   permission    = "ALLOW"
+  rest_endpoint = local.kafka_rest_endpoint
 
   credentials {
     key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
@@ -165,7 +167,7 @@ resource "confluent_kafka_acl" "worker_write_dlq" {
 # -----------------------------------------------------------------------------
 # GCP Secret Manager - Store Worker Kafka Credentials
 # -----------------------------------------------------------------------------
-# Secrets are created once and then versions are added for each API key rotation.
+# Secrets are created once and versions are added for each API key.
 # Uses data sources to check if secrets exist, creates if not.
 # -----------------------------------------------------------------------------
 

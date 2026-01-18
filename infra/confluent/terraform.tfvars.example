@@ -48,3 +48,27 @@ dlq_partitions     = 1
 # Retention configuration (in milliseconds)
 primary_retention_ms = 604800000   # 7 days
 dlq_retention_ms     = 2592000000  # 30 days
+
+# =============================================================================
+# Existing Resource IDs (Lookup Pattern)
+# =============================================================================
+# Set these to use existing Confluent Cloud resources instead of creating new.
+# Leave empty ("") to create new resources.
+# This enables idempotent deployments that won't fail if resources exist.
+
+# Existing environment ID (e.g., "env-xxxxx")
+existing_environment_id = ""
+
+# Existing Kafka cluster ID (e.g., "lkc-xxxxx")
+existing_cluster_id = ""
+
+# Existing service account ID (e.g., "sa-xxxxx")
+existing_service_account_id = ""
+
+# =============================================================================
+# API Key Rotation
+# =============================================================================
+# Set to true to force rotation of the worker Kafka API key.
+# Reset to false after rotation is complete.
+
+rotate_worker_api_key = false
