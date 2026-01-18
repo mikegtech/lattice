@@ -11,6 +11,9 @@ variable "gcp_region" {
 # -----------------------------------------------------------------------------
 # Control Plane Credentials (Confluent Cloud API)
 # -----------------------------------------------------------------------------
+# These are the ONLY secrets that must be manually created in Secret Manager.
+# They provide Cloud API access for the Confluent provider to manage resources.
+# -----------------------------------------------------------------------------
 
 variable "confluent_api_key_secret_name" {
   type        = string
@@ -23,20 +26,8 @@ variable "confluent_api_secret_secret_name" {
 }
 
 # -----------------------------------------------------------------------------
-# Data Plane Credentials (CI Kafka API Key)
+# Confluent Cloud Configuration
 # -----------------------------------------------------------------------------
-
-variable "ci_kafka_api_key_secret_name" {
-  type        = string
-  description = "Secret Manager secret name for CI Kafka API key (data plane)"
-  default     = "lattice-ci-kafka-api-key"
-}
-
-variable "ci_kafka_api_secret_secret_name" {
-  type        = string
-  description = "Secret Manager secret name for CI Kafka API secret (data plane)"
-  default     = "lattice-ci-kafka-api-secret"
-}
 
 variable "confluent_environment_name" {
   type    = string
@@ -56,6 +47,10 @@ variable "kafka_availability" {
     error_message = "kafka_availability must be SINGLE_ZONE or MULTI_ZONE."
   }
 }
+
+# -----------------------------------------------------------------------------
+# Topic Configuration
+# -----------------------------------------------------------------------------
 
 variable "topics" {
   description = "List of primary topic names (non-DLQ)"
@@ -145,9 +140,21 @@ variable "existing_cluster_id" {
 }
 
 variable "existing_service_account_id" {
-  description = "Existing service account ID (e.g., sa-xxxxx). Leave empty to create new."
+  description = "Existing worker service account ID (e.g., sa-xxxxx). Leave empty to create new."
   type        = string
   default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# API Key Rotation
+# -----------------------------------------------------------------------------
+# Set to true to force rotation, then reset to false after apply.
+# -----------------------------------------------------------------------------
+
+variable "rotate_ci_kafka_api_key" {
+  description = "Set to true to force rotation of the CI Kafka API key. Reset to false after rotation."
+  type        = bool
+  default     = false
 }
 
 variable "rotate_worker_api_key" {

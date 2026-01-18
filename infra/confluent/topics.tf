@@ -33,10 +33,10 @@ resource "confluent_kafka_topic" "topics" {
     "retention.ms" = tostring(each.value.retention_ms)
   }
 
-  # Use CI Kafka API key (data plane) for topic management
-  # This key is owned by lattice-ci-kafka service account
+  # Use Terraform-managed CI Kafka API key for topic operations
+  # This key is always valid for the current cluster
   credentials {
-    key    = data.google_secret_manager_secret_version.ci_kafka_api_key.secret_data
-    secret = data.google_secret_manager_secret_version.ci_kafka_api_secret.secret_data
+    key    = confluent_api_key.ci_kafka.id
+    secret = confluent_api_key.ci_kafka.secret
   }
 }

@@ -16,19 +16,10 @@ gcp_region = "us-south1"
 # =============================================================================
 # These secrets must exist in GCP Secret Manager before running terraform.
 # The Cloud API key is used by the Confluent provider for resource management.
+# This is the ONLY manual secret setup required.
 
-confluent_api_key_secret_name    = "confluent-cloud-api-key"  # pragma: allowlist secret
+confluent_api_key_secret_name    = "confluent-cloud-api-key"     # pragma: allowlist secret
 confluent_api_secret_secret_name = "confluent-cloud-api-secret"  # pragma: allowlist secret
-
-# =============================================================================
-# Data Plane Credentials (CI Kafka API Key)
-# =============================================================================
-# These secrets must exist in GCP Secret Manager before running terraform.
-# The CI Kafka API key is used for topic and ACL management.
-# Owned by service account: lattice-ci-kafka
-
-ci_kafka_api_key_secret_name    = "lattice-ci-kafka-api-key"     # pragma: allowlist secret
-ci_kafka_api_secret_secret_name = "lattice-ci-kafka-api-secret"  # pragma: allowlist secret
 
 # =============================================================================
 # Confluent Cloud Configuration
@@ -68,7 +59,9 @@ existing_service_account_id = ""
 # =============================================================================
 # API Key Rotation
 # =============================================================================
-# Set to true to force rotation of the worker Kafka API key.
+# Set to true to force rotation of Kafka API keys.
 # Reset to false after rotation is complete.
+# CI Kafka and Worker keys are Terraform-managed and persisted to Secret Manager.
 
-rotate_worker_api_key = false
+rotate_ci_kafka_api_key = false
+rotate_worker_api_key   = false
