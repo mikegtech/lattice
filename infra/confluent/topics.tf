@@ -22,9 +22,10 @@ resource "confluent_kafka_topic" "topics" {
   for_each = local.all_topics
 
   kafka_cluster {
-    id = confluent_kafka_cluster.this.id
+    id = local.kafka_cluster_id
   }
 
+  rest_endpoint    = local.kafka_rest_endpoint
   topic_name       = each.key
   partitions_count = each.value.partitions
 

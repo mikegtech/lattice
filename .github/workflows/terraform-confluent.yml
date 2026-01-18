@@ -15,12 +15,16 @@ on:
       - '.github/workflows/terraform-confluent.yml'
   workflow_dispatch:
     inputs:
-      import_existing_service_account:
-        description: 'Import existing service account instead of creating new'
-        type: boolean
-        default: false
+      existing_environment_id:
+        description: 'Existing environment ID (e.g., env-xxxxx). Leave empty to create new.'
+        type: string
+        default: ''
+      existing_cluster_id:
+        description: 'Existing cluster ID (e.g., lkc-xxxxx). Leave empty to create new.'
+        type: string
+        default: ''
       existing_service_account_id:
-        description: 'Service account ID to import (e.g., sa-xxxxx)'
+        description: 'Existing service account ID (e.g., sa-xxxxx). Leave empty to create new.'
         type: string
         default: ''
       rotate_worker_api_key:
@@ -71,7 +75,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
@@ -84,7 +89,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
@@ -118,7 +124,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
@@ -131,7 +138,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
@@ -171,7 +179,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
@@ -184,7 +193,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
@@ -197,7 +207,8 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
           TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 

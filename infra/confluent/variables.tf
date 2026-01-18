@@ -126,17 +126,26 @@ variable "dlq_retention_ms" {
 }
 
 # -----------------------------------------------------------------------------
-# Resource Management Flags
+# Existing Resource IDs (Lookup Pattern)
+# -----------------------------------------------------------------------------
+# Set these to use existing resources instead of creating new ones.
+# Leave empty ("") to create new resources.
 # -----------------------------------------------------------------------------
 
-variable "import_existing_service_account" {
-  description = "If true, import existing lattice-worker service account instead of creating new"
-  type        = bool
-  default     = false
+variable "existing_environment_id" {
+  description = "Existing Confluent environment ID (e.g., env-xxxxx). Leave empty to create new."
+  type        = string
+  default     = ""
+}
+
+variable "existing_cluster_id" {
+  description = "Existing Kafka cluster ID (e.g., lkc-xxxxx). Leave empty to create new."
+  type        = string
+  default     = ""
 }
 
 variable "existing_service_account_id" {
-  description = "Existing service account ID to import (e.g., sa-xxxxx). Required if import_existing_service_account is true"
+  description = "Existing service account ID (e.g., sa-xxxxx). Leave empty to create new."
   type        = string
   default     = ""
 }
