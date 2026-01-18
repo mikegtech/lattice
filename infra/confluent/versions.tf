@@ -4,11 +4,15 @@ terraform {
   required_providers {
     confluent = {
       source  = "confluentinc/confluent"
-      version = "~> 1.80" # pick a current stable range
+      version = "~> 2.0"
     }
     google = {
       source  = "hashicorp/google"
       version = "~> 5.0"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
     }
   }
 
