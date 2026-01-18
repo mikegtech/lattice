@@ -178,6 +178,8 @@ resource "confluent_kafka_acl" "worker_consumer_group" {
     key    = confluent_api_key.ci_kafka.id
     secret = confluent_api_key.ci_kafka.secret
   }
+
+  depends_on = [confluent_role_binding.ci_kafka_cluster_admin]
 }
 
 # Worker can read from all lattice.* topics (primary topics)
@@ -198,6 +200,8 @@ resource "confluent_kafka_acl" "worker_read_topics" {
     key    = confluent_api_key.ci_kafka.id
     secret = confluent_api_key.ci_kafka.secret
   }
+
+  depends_on = [confluent_role_binding.ci_kafka_cluster_admin]
 }
 
 # Worker can write to all lattice.* topics (output topics)
@@ -218,6 +222,8 @@ resource "confluent_kafka_acl" "worker_write_topics" {
     key    = confluent_api_key.ci_kafka.id
     secret = confluent_api_key.ci_kafka.secret
   }
+
+  depends_on = [confluent_role_binding.ci_kafka_cluster_admin]
 }
 
 # Worker can write to DLQ topics (lattice.dlq.*)
@@ -238,6 +244,8 @@ resource "confluent_kafka_acl" "worker_write_dlq" {
     key    = confluent_api_key.ci_kafka.id
     secret = confluent_api_key.ci_kafka.secret
   }
+
+  depends_on = [confluent_role_binding.ci_kafka_cluster_admin]
 }
 
 # -----------------------------------------------------------------------------

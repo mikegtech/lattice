@@ -39,4 +39,9 @@ resource "confluent_kafka_topic" "topics" {
     key    = confluent_api_key.ci_kafka.id
     secret = confluent_api_key.ci_kafka.secret
   }
+
+  # Ensure CI Kafka service account has cluster admin permissions before creating topics
+  depends_on = [
+    confluent_role_binding.ci_kafka_cluster_admin
+  ]
 }
