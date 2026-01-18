@@ -22,6 +22,19 @@ resource "confluent_service_account" "ci_kafka" {
 }
 
 # -----------------------------------------------------------------------------
+# CI Kafka Role Binding (CloudClusterAdmin)
+# -----------------------------------------------------------------------------
+# Grants the CI Kafka service account admin permissions on the cluster.
+# This is required for topic and ACL management via the Kafka API.
+# -----------------------------------------------------------------------------
+
+resource "confluent_role_binding" "ci_kafka_cluster_admin" {
+  principal   = "User:${confluent_service_account.ci_kafka.id}"
+  role_name   = "CloudClusterAdmin"
+  crn_pattern = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].rbac_crn : confluent_kafka_cluster.this[0].rbac_crn
+}
+
+# -----------------------------------------------------------------------------
 # CI Kafka API Key (Terraform-managed)
 # -----------------------------------------------------------------------------
 # This key is used for ALL Kafka data-plane operations in Terraform:
@@ -56,6 +69,11 @@ resource "confluent_api_key" "ci_kafka" {
       null_resource.ci_kafka_api_key_rotation_trigger
     ]
   }
+
+  # Ensure role binding exists before creating the API key
+  depends_on = [
+    confluent_role_binding.ci_kafka_cluster_admin
+  ]
 }
 
 # Null resource to trigger CI Kafka API key rotation
