@@ -75,9 +75,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Validate
@@ -89,9 +89,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
   terraform-plan:
@@ -124,9 +124,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Plan
@@ -138,9 +138,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Upload Plan
@@ -179,9 +179,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Plan
@@ -193,9 +193,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Apply
@@ -207,9 +207,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
-          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || '' }}
-          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || '' }}
-          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_existing_environment_id: ${{ inputs.existing_environment_id || vars.EXISTING_ENVIRONMENT_ID || '' }}
+          TF_VAR_existing_cluster_id: ${{ inputs.existing_cluster_id || vars.EXISTING_CLUSTER_ID || '' }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || vars.EXISTING_SERVICE_ACCOUNT_ID || '' }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Send Success Event to Datadog
