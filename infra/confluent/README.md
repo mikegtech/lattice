@@ -223,19 +223,35 @@ confluent kafka topic list --cluster lkc-xxxxx
 
 ### Rotating CI Kafka API Key (Terraform-Managed)
 
-Use the workflow dispatch input or Terraform variable:
+The CI Kafka API key has `prevent_destroy = true` to prevent accidental deletion. Rotation creates a new key while keeping the old key intact.
 
-```bash
-# Via GitHub Actions (recommended)
-# Go to Actions → Terraform Confluent → Run workflow
-# Check "Force rotation of CI Kafka API key"
+**Rotation steps:**
 
-# Via Terraform locally
-terraform apply -var="rotate_ci_kafka_api_key=true"
+1. Set `rotate_ci_kafka_api_key=true` and apply:
+   ```bash
+   # Via GitHub Actions (recommended)
+   # Go to Actions → Terraform Confluent → Run workflow
+   # Check "Force rotation of CI Kafka API key"
 
-# Reset after rotation
-terraform apply -var="rotate_ci_kafka_api_key=false"
-```
+   # Via Terraform locally
+   terraform apply -var="rotate_ci_kafka_api_key=true"
+   ```
+
+2. Reset the variable to prevent continuous rotation:
+   ```bash
+   terraform apply -var="rotate_ci_kafka_api_key=false"
+   ```
+
+3. Verify pipelines are healthy with the new key.
+
+4. Manually revoke the old API key in Confluent Cloud Console:
+   - Go to Cluster → API Keys → Delete the old `lattice-ci-kafka-api-key`
+
+**Secret Manager:** The current key is stored in:
+- `lattice-ci-kafka-api-key` (API key ID)
+- `lattice-ci-kafka-api-secret` (API key secret)
+
+New secret versions are created automatically after rotation.
 
 ### Rotating Worker Kafka API Key (Terraform-Managed)
 

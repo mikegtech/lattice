@@ -64,7 +64,10 @@ resource "confluent_api_key" "ci_kafka" {
   }
 
   # Force recreation when rotation is requested
+  # prevent_destroy ensures accidental deletion is blocked; old keys must be
+  # revoked manually in Confluent Cloud after rotation is verified healthy.
   lifecycle {
+    prevent_destroy = true
     replace_triggered_by = [
       null_resource.ci_kafka_api_key_rotation_trigger
     ]
