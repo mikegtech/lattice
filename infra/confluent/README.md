@@ -259,6 +259,31 @@ terraform refresh
 terraform state rm 'confluent_kafka_topic.topics["topic-name"]'
 ```
 
+## Lifecycle Protection
+
+The environment and cluster have `prevent_destroy = true` to prevent accidental deletion.
+
+If you need to destroy these resources intentionally:
+
+1. Temporarily remove the lifecycle block from `main.tf`
+2. Run `terraform apply` to update state
+3. Run `terraform destroy` for the specific resource
+4. **Restore the lifecycle block immediately after**
+
+```bash
+# To destroy a protected resource (USE WITH CAUTION):
+# 1. Edit main.tf to remove lifecycle { prevent_destroy = true }
+# 2. Apply the change
+terraform apply
+
+# 3. Destroy the specific resource
+terraform destroy -target=confluent_kafka_cluster.this
+
+# 4. Re-add the lifecycle block and apply
+```
+
+**Warning:** Destroying the cluster will delete all topics and data. This is irreversible.
+
 ## CI/CD Pipeline
 
 The GitHub Actions workflow (`terraform-confluent.yml`) runs:
