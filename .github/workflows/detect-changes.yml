@@ -1,0 +1,39 @@
+name: Detect Changes
+
+on:
+  workflow_call:
+    outputs:
+      code:
+        description: 'True if code files changed'
+        value: ${{ jobs.detect.outputs.code }}
+      infra:
+        description: 'True if infra files changed'
+        value: ${{ jobs.detect.outputs.infra }}
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'packages/**'
+              - 'apps/**'
+              - 'src/**'
+              - 'python/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - '.pre-commit-config.yaml'
+            infra:
+              - 'infra/**'

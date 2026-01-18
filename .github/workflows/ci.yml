@@ -3,13 +3,16 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    uses: ./.github/workflows/detect-changes.yml
+
   precommit:
     name: pre-commit (policy)
     runs-on: ubuntu-latest
@@ -45,6 +48,8 @@ jobs:
 
   node:
     name: node (build)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +73,8 @@ jobs:
 
   python:
     name: python (deps)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
