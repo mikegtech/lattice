@@ -73,8 +73,8 @@ locals {
   environment_id           = local.use_existing_environment ? data.confluent_environment.existing[0].id : confluent_environment.this[0].id
 
   # Cluster
-  use_existing_cluster   = var.existing_cluster_id != ""
-  kafka_cluster_id       = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].id : confluent_kafka_cluster.this[0].id
-  kafka_rest_endpoint    = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].rest_endpoint : confluent_kafka_cluster.this[0].rest_endpoint
+  use_existing_cluster     = var.existing_cluster_id != ""
+  kafka_cluster_id         = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].id : confluent_kafka_cluster.this[0].id
+  kafka_rest_endpoint      = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].rest_endpoint : confluent_kafka_cluster.this[0].rest_endpoint
   kafka_bootstrap_endpoint = local.use_existing_cluster ? data.confluent_kafka_cluster.existing[0].bootstrap_endpoint : confluent_kafka_cluster.this[0].bootstrap_endpoint
 }
