@@ -19,5 +19,8 @@ resource "confluent_kafka_cluster" "this" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes = [
+      environment, # Prevent recreation if environment reference drifts
+    ]
   }
 }
