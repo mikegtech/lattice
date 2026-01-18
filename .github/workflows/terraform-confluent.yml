@@ -13,6 +13,20 @@ on:
     paths:
       - 'infra/confluent/**'
       - '.github/workflows/terraform-confluent.yml'
+  workflow_dispatch:
+    inputs:
+      import_existing_service_account:
+        description: 'Import existing service account instead of creating new'
+        type: boolean
+        default: false
+      existing_service_account_id:
+        description: 'Service account ID to import (e.g., sa-xxxxx)'
+        type: string
+        default: ''
+      rotate_worker_api_key:
+        description: 'Force rotation of worker Kafka API key'
+        type: boolean
+        default: false
 
 env:
   TF_VERSION: '1.5.7'
@@ -57,6 +71,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -67,6 +84,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
   terraform-plan:
     name: Terraform Plan
@@ -98,6 +118,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -108,6 +131,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Upload Plan
         uses: actions/upload-artifact@v4
@@ -119,7 +145,7 @@ jobs:
   terraform-apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     environment: confluent-production
 
     steps:
@@ -145,6 +171,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -155,6 +184,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -165,6 +197,9 @@ jobs:
           TF_VAR_confluent_api_secret_secret_name: ${{ env.CONFLUENT_API_SECRET_SECRET }}
           TF_VAR_ci_kafka_api_key_secret_name: ${{ env.CI_KAFKA_API_KEY_SECRET }}
           TF_VAR_ci_kafka_api_secret_secret_name: ${{ env.CI_KAFKA_API_SECRET_SECRET }}
+          TF_VAR_import_existing_service_account: ${{ inputs.import_existing_service_account || false }}
+          TF_VAR_existing_service_account_id: ${{ inputs.existing_service_account_id || '' }}
+          TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
       - name: Send Success Event to Datadog
         if: success() && vars.DATADOG_EVENTS_ENABLED == 'true'

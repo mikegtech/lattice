@@ -124,3 +124,25 @@ variable "dlq_retention_ms" {
   type        = number
   default     = 2592000000 # 30 days
 }
+
+# -----------------------------------------------------------------------------
+# Resource Management Flags
+# -----------------------------------------------------------------------------
+
+variable "import_existing_service_account" {
+  description = "If true, import existing lattice-worker service account instead of creating new"
+  type        = bool
+  default     = false
+}
+
+variable "existing_service_account_id" {
+  description = "Existing service account ID to import (e.g., sa-xxxxx). Required if import_existing_service_account is true"
+  type        = string
+  default     = ""
+}
+
+variable "rotate_worker_api_key" {
+  description = "Set to true to force rotation of the worker Kafka API key. Reset to false after rotation."
+  type        = bool
+  default     = false
+}

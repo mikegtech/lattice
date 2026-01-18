@@ -32,7 +32,7 @@ output "kafka_rest_endpoint" {
 
 output "service_account_worker_id" {
   description = "Worker service account ID"
-  value       = confluent_service_account.worker.id
+  value       = local.worker_service_account_id
 }
 
 # -----------------------------------------------------------------------------
@@ -41,23 +41,23 @@ output "service_account_worker_id" {
 
 output "worker_kafka_api_key_secret_name" {
   description = "GCP Secret Manager secret name for worker Kafka API key"
-  value       = google_secret_manager_secret.worker_kafka_api_key.secret_id
+  value       = "lattice-worker-kafka-api-key"
 }
 
 output "worker_kafka_api_secret_secret_name" {
   description = "GCP Secret Manager secret name for worker Kafka API secret"
-  value       = google_secret_manager_secret.worker_kafka_api_secret.secret_id
+  value       = "lattice-worker-kafka-api-secret"
 }
 
 # Full resource names for programmatic access
 output "worker_kafka_api_key_secret_resource" {
   description = "Full GCP Secret Manager resource name for worker Kafka API key"
-  value       = google_secret_manager_secret.worker_kafka_api_key.name
+  value       = local.worker_kafka_api_key_secret_id
 }
 
 output "worker_kafka_api_secret_secret_resource" {
   description = "Full GCP Secret Manager resource name for worker Kafka API secret"
-  value       = google_secret_manager_secret.worker_kafka_api_secret.name
+  value       = local.worker_kafka_api_secret_secret_id
 }
 
 # -----------------------------------------------------------------------------
