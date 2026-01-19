@@ -208,28 +208,28 @@ jobs:
           TF_VAR_rotate_ci_kafka_api_key: ${{ inputs.rotate_ci_kafka_api_key || false }}
           TF_VAR_rotate_worker_api_key: ${{ inputs.rotate_worker_api_key || false }}
 
-      - name: Send Success Event to Datadog
-        if: success() && vars.DATADOG_EVENTS_ENABLED == 'true'
+      - name: Send Deploy Marker to New Relic
+        if: success() && vars.NEW_RELIC_EVENTS_ENABLED == 'true'
         run: |
-          curl -X POST "https://api.datadoghq.com/api/v1/events" \
-            -H "Content-Type: application/json" \
-            -H "DD-API-KEY: ${{ secrets.DATADOG_API_KEY }}" \
-            -d '{
-              "title": "Confluent Infrastructure Deployed",
-              "text": "Terraform apply succeeded.\n\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}",
-              "tags": ["env:production", "service:terraform-confluent", "status:success"],
-              "alert_type": "success"
-            }'
+          tools/scripts/emit-deploy-marker.sh \
+            --service "terraform-confluent" \
+            --version "${{ github.sha }}" \
+            --status "success" \
+            --description "Terraform apply succeeded. Author: ${{ github.actor }}"
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_REGION: ${{ vars.NEW_RELIC_REGION || 'US' }}
 
-      - name: Send Failure Event to Datadog
-        if: failure() && vars.DATADOG_EVENTS_ENABLED == 'true'
+      - name: Send Failure Marker to New Relic
+        if: failure() && vars.NEW_RELIC_EVENTS_ENABLED == 'true'
         run: |
-          curl -X POST "https://api.datadoghq.com/api/v1/events" \
-            -H "Content-Type: application/json" \
-            -H "DD-API-KEY: ${{ secrets.DATADOG_API_KEY }}" \
-            -d '{
-              "title": "Confluent Infrastructure Deploy FAILED",
-              "text": "Terraform apply failed.\n\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}",
-              "tags": ["env:production", "service:terraform-confluent", "status:failed"],
-              "alert_type": "error"
-            }'
+          tools/scripts/emit-deploy-marker.sh \
+            --service "terraform-confluent" \
+            --version "${{ github.sha }}" \
+            --status "failed" \
+            --description "Terraform apply failed. Author: ${{ github.actor }}"
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_REGION: ${{ vars.NEW_RELIC_REGION || 'US' }}
