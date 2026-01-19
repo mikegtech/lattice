@@ -22,7 +22,7 @@
 
 services:
   newrelic-logs:
-    image: fluent/fluent-bit:latest
+    image: fluent/fluent-bit:4.2.0
     container_name: lattice-newrelic-logs
     environment:
       # New Relic configuration
@@ -32,15 +32,26 @@ services:
       LATTICE_ENV: ${LATTICE_ENV:-local}
       # Fluent Bit log level
       LOG_LEVEL: ${LOG_LEVEL:-info}
-    # Workaround: set host directly based on region
+    # Entrypoint: set host based on region and validate license key
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        # Set New Relic log host based on region
         if [ "${NEW_RELIC_REGION:-US}" = "EU" ]; then
           export NEW_RELIC_LOG_HOST="log-api.eu.newrelic.com"
         else
           export NEW_RELIC_LOG_HOST="log-api.newrelic.com"
         fi
+
+        # Warn if license key is missing (but don't crash - allows local testing)
+        if [ -z "${NEW_RELIC_LICENSE_KEY}" ]; then
+          echo "[WARNING] NEW_RELIC_LICENSE_KEY is not set. Logs will NOT be forwarded to New Relic."
+          echo "[WARNING] Set NEW_RELIC_LICENSE_KEY in your .env file or environment to enable log forwarding."
+          echo "[INFO] Fluent Bit will still run for local testing (collecting logs, but HTTP output will fail)."
+        else
+          echo "[INFO] New Relic logging configured for ${NEW_RELIC_REGION:-US} region (${NEW_RELIC_LOG_HOST})"
+        fi
+
         exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
     volumes:
       # Docker socket for container metadata enrichment
