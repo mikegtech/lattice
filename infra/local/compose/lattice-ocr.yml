@@ -35,8 +35,9 @@ x-newrelic-env: &newrelic-env
   NEW_RELIC_ENABLED: ${NEW_RELIC_ENABLED:-true}
   NEW_RELIC_LOG_LEVEL: ${NEW_RELIC_LOG_LEVEL:-info}
   NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "true"
+  # Log forwarding handled by Fluent Bit (newrelic-logging.yml), not APM agent
   NEW_RELIC_APPLICATION_LOGGING_ENABLED: "true"
-  NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED: "true"
+  NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED: "true"
 
 x-storage-env: &storage-env
   S3_ENDPOINT: http://100.103.47.127:9000

@@ -71,19 +71,26 @@ exports.config = {
 	},
 
 	/**
-	 * Application logging - forward logs to New Relic
+	 * Application logging configuration
+	 *
+	 * IMPORTANT: Log forwarding is DISABLED here because we use Fluent Bit
+	 * (newrelic-logging.yml) for log shipping. Enabling both would cause
+	 * duplicate logs in New Relic.
+	 *
+	 * - forwarding: DISABLED - Fluent Bit handles log shipping via Docker labels
+	 * - local_decorating: ENABLED - Adds NR-LINKING metadata for trace correlation
+	 * - metrics: ENABLED - Log count metrics still collected
 	 */
 	application_logging: {
 		enabled: true,
 		forwarding: {
-			enabled: true,
-			max_samples_stored: 10000,
+			enabled: false, // Fluent Bit handles log shipping - see newrelic-logging.yml
 		},
 		metrics: {
 			enabled: true,
 		},
 		local_decorating: {
-			enabled: false,
+			enabled: true, // Adds trace correlation metadata to logs
 		},
 	},
 };
