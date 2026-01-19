@@ -54,9 +54,6 @@ jobs:
           TF_VAR_newrelic_account_id: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
           TF_VAR_newrelic_api_key: ${{ secrets.NEW_RELIC_API_KEY }}
           TF_VAR_newrelic_region: ${{ vars.NEW_RELIC_REGION || 'US' }}
-          TF_VAR_slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-          TF_VAR_slack_team_id: ${{ secrets.SLACK_TEAM_ID }}
-          TF_VAR_slack_oauth_token: ${{ secrets.SLACK_OAUTH_TOKEN }}
           TF_VAR_pagerduty_service_key: ${{ secrets.PAGERDUTY_SERVICE_KEY }}
 
   terraform-apply:
@@ -90,9 +87,6 @@ jobs:
           TF_VAR_newrelic_account_id: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
           TF_VAR_newrelic_api_key: ${{ secrets.NEW_RELIC_API_KEY }}
           TF_VAR_newrelic_region: ${{ vars.NEW_RELIC_REGION || 'US' }}
-          TF_VAR_slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-          TF_VAR_slack_team_id: ${{ secrets.SLACK_TEAM_ID }}
-          TF_VAR_slack_oauth_token: ${{ secrets.SLACK_OAUTH_TOKEN }}
           TF_VAR_pagerduty_service_key: ${{ secrets.PAGERDUTY_SERVICE_KEY }}
 
       - name: Terraform Apply
@@ -102,9 +96,6 @@ jobs:
           TF_VAR_newrelic_account_id: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
           TF_VAR_newrelic_api_key: ${{ secrets.NEW_RELIC_API_KEY }}
           TF_VAR_newrelic_region: ${{ vars.NEW_RELIC_REGION || 'US' }}
-          TF_VAR_slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-          TF_VAR_slack_team_id: ${{ secrets.SLACK_TEAM_ID }}
-          TF_VAR_slack_oauth_token: ${{ secrets.SLACK_OAUTH_TOKEN }}
           TF_VAR_pagerduty_service_key: ${{ secrets.PAGERDUTY_SERVICE_KEY }}
 
       - name: Post Deployment Marker to New Relic

@@ -2,6 +2,7 @@
 # Copy this file to terraform.tfvars and fill in your values
 
 newrelic_account_id = 1234567
+# User API Key (starts with NRAK-). Get from: New Relic → User menu → API Keys → Create key → User type
 newrelic_api_key    = "NRAK-XXXXXXXXXXXXXXXXXXXXXXXXXXXX" # pragma: allowlist secret
 newrelic_region     = "US"
 
@@ -9,19 +10,11 @@ environment = "production"
 team        = "platform"
 
 # =============================================================================
-# Native Slack Integration (Optional)
-# First connect Slack in New Relic UI: Alerts → Destinations → Add destination → Slack
-# Then fill in these values:
+# Slack Notifications
+# Slack destinations must be created via New Relic UI, not Terraform.
+# To set up: New Relic → Alerts → Destinations → Add destination → Slack
+# Then create a workflow in the UI to route alerts to Slack.
 # =============================================================================
-
-# Slack channel ID - right-click channel in Slack → View channel details → scroll to bottom
-# slack_channel_id = "C0123456789"
-
-# Slack workspace ID - find in Slack: workspace menu → Settings → Workspace settings
-# slack_team_id = "T09FPD1ANU"
-
-# OAuth token - obtained when connecting New Relic to Slack
-# slack_oauth_token = "xoxb-..."
 
 # =============================================================================
 # PagerDuty Integration (Optional)

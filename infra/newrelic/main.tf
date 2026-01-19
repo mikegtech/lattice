@@ -37,41 +37,11 @@ resource "newrelic_alert_policy" "lattice_workers" {
 }
 
 # =============================================================================
-# Notification Channels - Native Slack Integration
+# Notification Channels
+# Note: Slack destinations must be created via New Relic UI, not Terraform.
+# To set up Slack: New Relic → Alerts → Destinations → Add destination → Slack
+# Then create a workflow in the UI to route alerts to Slack.
 # =============================================================================
-
-# Native Slack destination (requires Slack to be connected in New Relic UI first)
-# To set up: New Relic → Alerts → Destinations → Add destination → Slack
-resource "newrelic_notification_destination" "slack" {
-  count = var.slack_channel_id != "" ? 1 : 0
-
-  name = "Lattice Slack Alerts"
-  type = "SLACK"
-
-  auth_token {
-    prefix = "Bearer"
-    token  = var.slack_oauth_token
-  }
-
-  property {
-    key   = "teamId"
-    value = var.slack_team_id
-  }
-}
-
-resource "newrelic_notification_channel" "slack" {
-  count = var.slack_channel_id != "" ? 1 : 0
-
-  name           = "Lattice Slack Channel"
-  type           = "SLACK"
-  destination_id = newrelic_notification_destination.slack[0].id
-  product        = "IINT"
-
-  property {
-    key   = "channelId"
-    value = var.slack_channel_id
-  }
-}
 
 # PagerDuty notification channel (if configured)
 resource "newrelic_notification_destination" "pagerduty" {
@@ -101,9 +71,10 @@ resource "newrelic_notification_channel" "pagerduty" {
 }
 
 # =============================================================================
-# Workflow to route alerts to notification channels
+# Workflow to route alerts to PagerDuty (if configured)
 # =============================================================================
 resource "newrelic_workflow" "lattice_alerts" {
+  count                 = var.pagerduty_service_key != "" ? 1 : 0
   name                  = "Lattice Worker Alert Workflow"
   muting_rules_handling = "NOTIFY_ALL_ISSUES"
 
@@ -118,19 +89,7 @@ resource "newrelic_workflow" "lattice_alerts" {
     }
   }
 
-  # Slack destination (if configured)
-  dynamic "destination" {
-    for_each = var.slack_channel_id != "" ? [1] : []
-    content {
-      channel_id = newrelic_notification_channel.slack[0].id
-    }
-  }
-
-  # PagerDuty destination (if configured)
-  dynamic "destination" {
-    for_each = var.pagerduty_service_key != "" ? [1] : []
-    content {
-      channel_id = newrelic_notification_channel.pagerduty[0].id
-    }
+  destination {
+    channel_id = newrelic_notification_channel.pagerduty[0].id
   }
 }
