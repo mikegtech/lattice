@@ -28,37 +28,21 @@
 
 services:
   newrelic-logs:
-    image: fluent/fluent-bit:4.2.0
+    # New Relic Fluent Bit Output Plugin image (v3.2.1 includes Fluent Bit 4.2.0 with CVE fixes)
+    # See: https://github.com/newrelic/newrelic-fluent-bit-output
+    image: newrelic/newrelic-fluentbit-output:3.2.1
     container_name: lattice-newrelic-logs
     environment:
       # New Relic configuration
       NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
-      NEW_RELIC_LOG_HOST: ${NEW_RELIC_REGION:-US} == "EU" && "log-api.eu.newrelic.com" || "log-api.newrelic.com"
+      # Log host: log-api.newrelic.com (US) or log-api.eu.newrelic.com (EU)
+      NEW_RELIC_LOG_HOST: ${NEW_RELIC_LOG_HOST:-log-api.newrelic.com}
       # Metadata
       LATTICE_ENV: ${LATTICE_ENV:-local}
       # Fluent Bit log level
       LOG_LEVEL: ${LOG_LEVEL:-info}
-    # Entrypoint: set host based on region and validate license key
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        # Set New Relic log host based on region
-        if [ "${NEW_RELIC_REGION:-US}" = "EU" ]; then
-          export NEW_RELIC_LOG_HOST="log-api.eu.newrelic.com"
-        else
-          export NEW_RELIC_LOG_HOST="log-api.newrelic.com"
-        fi
-
-        # Warn if license key is missing (but don't crash - allows local testing)
-        if [ -z "${NEW_RELIC_LICENSE_KEY}" ]; then
-          echo "[WARNING] NEW_RELIC_LICENSE_KEY is not set. Logs will NOT be forwarded to New Relic."
-          echo "[WARNING] Set NEW_RELIC_LICENSE_KEY in your .env file or environment to enable log forwarding."
-          echo "[INFO] Fluent Bit will still run for local testing (collecting logs, but HTTP output will fail)."
-        else
-          echo "[INFO] New Relic logging configured for ${NEW_RELIC_REGION:-US} region (${NEW_RELIC_LOG_HOST})"
-        fi
-
-        exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
+    # Use our custom config instead of the bundled one
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.conf"]
     volumes:
       # Docker socket for container metadata enrichment
       - /var/run/docker.sock:/var/run/docker.sock:ro
