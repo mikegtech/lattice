@@ -47,7 +47,7 @@ Set these in your `.env` file:
 
 ```bash
 NEW_RELIC_LICENSE_KEY=your-ingest-license-key  # Required for log forwarding
-NEW_RELIC_REGION=US                            # US (default) or EU
+NEW_RELIC_LOG_HOST=log-api.newrelic.com        # US: log-api.newrelic.com, EU: log-api.eu.newrelic.com
 LATTICE_ENV=local                              # Environment tag
 LOG_LEVEL=info                                 # Fluent Bit log level
 ```
@@ -238,7 +238,7 @@ Copy `.env.example` to `.env` and configure:
 | `KAFKA_SASL_PASSWORD` | Confluent Cloud API secret |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
 | `NEW_RELIC_LICENSE_KEY` | New Relic ingest license key |
-| `NEW_RELIC_REGION` | US (default) or EU |
+| `NEW_RELIC_LOG_HOST` | `log-api.newrelic.com` (US) or `log-api.eu.newrelic.com` (EU) |
 | `LATTICE_ENV` | Environment tag (local, dev, prod) |
 | `LOG_LEVEL` | Fluent Bit log level (error, warn, info, debug) |
 
