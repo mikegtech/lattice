@@ -26,8 +26,17 @@ x-datadog-env: &datadog-env
   DD_ENV: prod
   DD_AGENT_HOST: ${DD_AGENT_HOST:-lattice-datadog-agent}
   DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
-  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-true}
+  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
   DD_DOGSTATSD_PORT: ${DD_DOGSTATSD_PORT:-8125}
+
+x-newrelic-env: &newrelic-env
+  TELEMETRY_PROVIDER: ${TELEMETRY_PROVIDER:-newrelic}
+  NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
+  NEW_RELIC_ENABLED: ${NEW_RELIC_ENABLED:-true}
+  NEW_RELIC_LOG_LEVEL: ${NEW_RELIC_LOG_LEVEL:-info}
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "true"
+  NEW_RELIC_APPLICATION_LOGGING_ENABLED: "true"
+  NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED: "true"
 
 x-storage-env: &storage-env
   S3_ENDPOINT: http://100.103.47.127:9000
@@ -103,11 +112,13 @@ services:
     container_name: lattice-ocr-worker
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-ocr"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-ocr
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-ocr
       # Lattice context
       LATTICE_DOMAIN: ocr
       LATTICE_STAGE: extract
