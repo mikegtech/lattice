@@ -1,0 +1,71 @@
+# =============================================================================
+# New Relic Logging Agent (Fluent Bit)
+# =============================================================================
+# Label-based opt-in log collection using Fluent Bit.
+# Only containers with label `com.newrelic.logs: "true"` are collected.
+#
+# Usage:
+#   docker compose -f lattice-core.yml -f lattice-workers.yml -f newrelic-logging.yml up -d
+#
+# Required environment variables:
+#   NEW_RELIC_LICENSE_KEY - Your New Relic ingest license key
+#
+# Optional environment variables:
+#   NEW_RELIC_REGION      - US (default) or EU
+#   LATTICE_ENV           - Environment tag (default: local)
+#   LOG_LEVEL             - Fluent Bit log level: error, warn, info, debug (default: info)
+#
+# To opt-in a container, add this label to its service:
+#   labels:
+#     com.newrelic.logs: "true"
+# =============================================================================
+
+services:
+  newrelic-logs:
+    image: fluent/fluent-bit:latest
+    container_name: lattice-newrelic-logs
+    environment:
+      # New Relic configuration
+      NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
+      NEW_RELIC_LOG_HOST: ${NEW_RELIC_REGION:-US} == "EU" && "log-api.eu.newrelic.com" || "log-api.newrelic.com"
+      # Metadata
+      LATTICE_ENV: ${LATTICE_ENV:-local}
+      # Fluent Bit log level
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    # Workaround: set host directly based on region
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ "${NEW_RELIC_REGION:-US}" = "EU" ]; then
+          export NEW_RELIC_LOG_HOST="log-api.eu.newrelic.com"
+        else
+          export NEW_RELIC_LOG_HOST="log-api.newrelic.com"
+        fi
+        exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
+    volumes:
+      # Docker socket for container metadata enrichment
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker container logs
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Fluent Bit configuration
+      - ./newrelic/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./newrelic/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+    ports:
+      - "2020:2020"  # Fluent Bit metrics endpoint
+    networks:
+      - lattice-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:2020/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      project: lattice
+      component: observability
+
+networks:
+  lattice-network:
+    external: true
+    name: compose_lattice-network

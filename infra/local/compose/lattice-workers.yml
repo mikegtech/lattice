@@ -61,6 +61,7 @@ services:
     container_name: lattice-mail-parser
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-parser"}]'
+      com.newrelic.logs: "true"
     environment:
       <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
       # Override MinIO endpoint to use IP instead of Docker hostname
@@ -150,6 +151,7 @@ services:
     container_name: lattice-mail-embedder
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-embedder"}]'
+      com.newrelic.logs: "true"
     environment:
       <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
       # Service identity

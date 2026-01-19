@@ -86,8 +86,8 @@ temp/
 *.tmp
 *.bak
 
-# Test/scratch scripts
-scripts/
+# Test/scratch scripts (root level only)
+/scripts/
 
 # Terraform
 .terraform/
@@ -124,3 +124,5 @@ terraform.rc
 # OS
 .DS_Store
 Thumbs.db
+
+/bin/

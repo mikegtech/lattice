@@ -1,5 +1,10 @@
 # Runbook: Datadog Observability Operations
 
+> **Note**: Lattice supports pluggable observability backends. This runbook covers
+> Datadog (full APM + logs + metrics). For a lightweight logs-only alternative,
+> see the [New Relic logging agent](../../.github/instructions/lattice-observability-newrelic.md).
+> Both backends consume the same structured JSON logs - no application changes needed.
+
 Operational procedures for managing Lattice observability in Datadog.
 
 ## Quick Links

@@ -96,7 +96,11 @@ This file overrides chat history.
 - Audit events published to `lattice.audit.events.v1`
 - NestJS worker `audit-writer` consumes and persists audit events
 
-### Phase 9 – Datadog Observability Infrastructure (COMPLETE)
+### Phase 9 – Observability Infrastructure (COMPLETE)
+- **Pluggable backends**: Datadog (full) or New Relic (logs-only)
+  - Datadog: `infra/local/compose/datadog.yml` + `infra/datadog/` (Terraform)
+  - New Relic: `infra/local/compose/newrelic-logging.yml`
+  - See `.github/instructions/lattice-observability-*.md` for backend-specific docs
 - Terraform-managed Datadog configuration (`infra/datadog/`)
 - Log pipeline with tier-aware processing
 - Log-based metrics for performance monitoring:
