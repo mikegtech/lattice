@@ -8,8 +8,10 @@ There is intentionally no root-level docker-compose.yml.
 | File | Services |
 |------|----------|
 | `lattice-core.yml` | PostgreSQL, Milvus, MinIO, Airflow |
-| `lattice-workers.yml` | mail-parser, mail-chunker, mail-embedder, mail-upserter, audit-writer |
-| `datadog.yml` | Datadog Agent (logs, metrics, traces) |
+| `lattice-workers.yml` | mail-parser, mail-chunker, mail-embedder, mail-upserter, mail-extractor, attachment-chunker, mail-ocr-normalizer, mail-deleter, audit-writer |
+| `lattice-ocr.yml` | ocr-worker (standalone OCR service) |
+| `newrelic-logging.yml` | New Relic Fluent Bit agent (logs) |
+| `datadog.yml` | Datadog Agent (logs, metrics, traces) - optional |
 
 ## Quick Start
 
@@ -18,15 +20,74 @@ There is intentionally no root-level docker-compose.yml.
 docker compose -f lattice-core.yml up -d
 ```
 
-### 2. Start workers (requires core network)
+### 2. Start workers with New Relic logging
 ```bash
-docker compose -f lattice-core.yml -f lattice-workers.yml up -d mail-parser mail-chunker mail-embedder mail-upserter audit-writer
+docker compose -f lattice-core.yml -f lattice-workers.yml -f newrelic-logging.yml up -d
 ```
 
-### 3. (Optional) Start Datadog
+### 3. (Optional) Start OCR workers
 ```bash
-docker compose -f datadog.yml up -d
+docker compose -f lattice-core.yml -f lattice-workers.yml -f lattice-ocr.yml -f newrelic-logging.yml up -d
 ```
+
+## New Relic Logging (Default)
+
+New Relic log forwarding uses **label-based opt-in**. Only containers with the following label will have their logs forwarded:
+
+```yaml
+labels:
+  com.newrelic.logs: "true"
+```
+
+All worker services in `lattice-workers.yml` and `lattice-ocr.yml` are already labeled.
+
+### Required Environment Variables
+
+Set these in your `.env` file:
+
+```bash
+NEW_RELIC_LICENSE_KEY=your-ingest-license-key  # Required for log forwarding
+NEW_RELIC_REGION=US                            # US (default) or EU
+LATTICE_ENV=local                              # Environment tag
+LOG_LEVEL=info                                 # Fluent Bit log level
+```
+
+### How Label Opt-In Works
+
+1. Fluent Bit tails all Docker container logs from `/var/lib/docker/containers`
+2. Docker metadata enrichment adds container labels to each log record
+3. Labels are flattened: `com.newrelic.logs` → `container_label_com_newrelic_logs`
+4. Grep filter keeps only logs where `container_label_com_newrelic_logs` equals `true`
+5. Matching logs are forwarded to New Relic Logs API
+
+### Verifying Opt-In
+
+To verify a container is opted-in, check its labels:
+```bash
+docker inspect lattice-mail-parser --format '{{json .Config.Labels}}' | jq '.["com.newrelic.logs"]'
+# Should output: "true"
+```
+
+To verify logs are flowing to New Relic:
+1. Check Fluent Bit is healthy: `curl http://localhost:2020/api/v1/health`
+2. Check Fluent Bit metrics: `curl http://localhost:2020/api/v1/metrics`
+3. View logs in New Relic One: Logs → Query for `project:lattice`
+
+## Datadog (Optional)
+
+If you prefer Datadog for observability, you can use the Datadog agent instead:
+
+```bash
+# Start with Datadog instead of New Relic
+docker compose -f lattice-core.yml -f lattice-workers.yml -f datadog.yml up -d
+```
+
+Required environment variable:
+```bash
+DD_API_KEY=your-datadog-api-key
+```
+
+Note: Datadog uses its own label-based collection (`com.datadoghq.ad.logs`), which is already configured on all workers.
 
 ## Workers
 
@@ -37,6 +98,11 @@ docker compose -f datadog.yml up -d
 | mail-embedder | `lattice.mail.chunk.v1` | `lattice.mail.embed.v1` | 3102 | Generates embeddings |
 | mail-upserter | `lattice.mail.embed.v1` | `lattice.mail.upsert.v1` | 3103 | Upserts vectors to Milvus |
 | audit-writer | `lattice.audit.events.v1` | *(none - terminal)* | 3104 | Writes audit events to Postgres |
+| mail-deleter | `lattice.mail.delete.v1` | `lattice.mail.delete.completed.v1` | 3105 | Handles email lifecycle deletions |
+| mail-extractor | `lattice.mail.attachment.v1` | `lattice.mail.attachment.extracted.v1` | 3106 | Extracts text from PDF/DOCX |
+| attachment-chunker | `lattice.mail.attachment.text.v1` | `lattice.mail.chunk.v1` | 3107 | Chunks extracted attachment text |
+| ocr-worker | `lattice.ocr.request.v1` | `lattice.ocr.result.v1` | 3108 | OCR extraction (Tesseract) |
+| mail-ocr-normalizer | `lattice.ocr.result.v1` | `lattice.mail.attachment.text.v1` | 3109 | Bridges OCR results to mail pipeline |
 
 ### Build workers
 ```bash
@@ -171,6 +237,10 @@ Copy `.env.example` to `.env` and configure:
 | `KAFKA_SASL_USERNAME` | Confluent Cloud API key |
 | `KAFKA_SASL_PASSWORD` | Confluent Cloud API secret |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
+| `NEW_RELIC_LICENSE_KEY` | New Relic ingest license key |
+| `NEW_RELIC_REGION` | US (default) or EU |
+| `LATTICE_ENV` | Environment tag (local, dev, prod) |
+| `LOG_LEVEL` | Fluent Bit log level (error, warn, info, debug) |
 
 ## Network
 

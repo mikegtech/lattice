@@ -32,8 +32,18 @@ x-datadog-env: &datadog-env
   DD_ENV: local
   DD_AGENT_HOST: ${DD_AGENT_HOST:-lattice-datadog-agent}
   DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
-  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-true}
+  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
   DD_DOGSTATSD_PORT: ${DD_DOGSTATSD_PORT:-8125}
+
+x-newrelic-env: &newrelic-env
+  TELEMETRY_PROVIDER: ${TELEMETRY_PROVIDER:-newrelic}
+  NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
+  NEW_RELIC_ENABLED: ${NEW_RELIC_ENABLED:-true}
+  NEW_RELIC_LOG_LEVEL: ${NEW_RELIC_LOG_LEVEL:-info}
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "true"
+  # Log forwarding handled by Fluent Bit (newrelic-logging.yml), not APM agent
+  NEW_RELIC_APPLICATION_LOGGING_ENABLED: "true"
+  NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED: "true"
 
 x-milvus-env: &milvus-env
   MILVUS_HOST: milvus
@@ -63,12 +73,13 @@ services:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-parser"}]'
       com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env, *newrelic-env]
       # Override MinIO endpoint to use IP instead of Docker hostname
       MINIO_ENDPOINT: http://100.103.47.127:9000
       # Service identity
       DD_SERVICE: lattice-worker-mail-parser
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-parser
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: parse
@@ -105,11 +116,13 @@ services:
     container_name: lattice-mail-chunker
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-chunker"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-chunker
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-chunker
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: chunk
@@ -153,10 +166,11 @@ services:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-embedder"}]'
       com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-embedder
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-embedder
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: embed
@@ -208,11 +222,13 @@ services:
     container_name: lattice-mail-upserter
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-upserter"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-upserter
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-upserter
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: upsert
@@ -258,11 +274,13 @@ services:
     container_name: lattice-mail-extractor
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-extractor"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-extractor
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-extractor
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: extract
@@ -298,11 +316,13 @@ services:
     container_name: lattice-attachment-chunker
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-attachment-chunker"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-attachment-chunker
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-attachment-chunker
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: chunk
@@ -348,11 +368,13 @@ services:
     container_name: lattice-mail-ocr-normalizer
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-ocr-normalizer"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-ocr-normalizer
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-ocr-normalizer
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: extract
@@ -388,11 +410,13 @@ services:
     container_name: lattice-mail-deleter
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-mail-deleter"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *milvus-env, *storage-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *milvus-env, *storage-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-mail-deleter
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-mail-deleter
       # Lattice context
       LATTICE_DOMAIN: mail
       LATTICE_STAGE: delete
@@ -428,11 +452,13 @@ services:
     container_name: lattice-audit-writer
     labels:
       com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-audit-writer"}]'
+      com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env, *newrelic-env]
       # Service identity
       DD_SERVICE: lattice-worker-audit-writer
       DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-audit-writer
       # Lattice context
       LATTICE_DOMAIN: audit
       LATTICE_STAGE: audit
