@@ -1,9 +1,10 @@
 # Lattice OCR Workers - Domain-agnostic OCR processing
-# Run with: docker compose -f lattice-ocr.yml up -d
+#
+# Run with New Relic logging:
+#   docker compose -f lattice-ocr.yml -f newrelic-logging.yml up -d
 #
 # Workers:
 #   - ocr-worker: Extracts text from images/PDFs using Tesseract OCR
-#   - mail-ocr-normalizer: Bridges OCR results back to mail pipeline
 
 x-common-env: &common-env
   NODE_ENV: production
@@ -22,13 +23,6 @@ x-kafka-env: &kafka-env
 x-postgres-env: &postgres-env
   DATABASE_URL: postgresql://lattice:${POSTGRES_PASSWORD:-lattice_dev_password}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/lattice
 
-x-datadog-env: &datadog-env
-  DD_ENV: prod
-  DD_AGENT_HOST: ${DD_AGENT_HOST:-lattice-datadog-agent}
-  DD_TRACE_AGENT_PORT: ${DD_TRACE_AGENT_PORT:-8126}
-  DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
-  DD_DOGSTATSD_PORT: ${DD_DOGSTATSD_PORT:-8125}
-
 x-newrelic-env: &newrelic-env
   TELEMETRY_PROVIDER: ${TELEMETRY_PROVIDER:-newrelic}
   NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
@@ -40,64 +34,13 @@ x-newrelic-env: &newrelic-env
   NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED: "true"
 
 x-storage-env: &storage-env
-  S3_ENDPOINT: http://100.103.47.127:9000
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://100.103.47.127:9000}
   S3_REGION: us-east-1
-  S3_ACCESS_KEY_ID: minioadmin
-  S3_SECRET_ACCESS_KEY: minioadmin # pragma: allowlist secret
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
   S3_FORCE_PATH_STYLE: "true"
 
 services:
-  # ==========================================================================
-  # Datadog Agent
-  # ==========================================================================
-  datadog-agent:
-    image: gcr.io/datadoghq/agent:7
-    container_name: lattice-datadog-agent
-    environment:
-      # API Key (required)
-      DD_API_KEY: ${DD_API_KEY:-}
-      DD_SITE: ${DD_SITE:-datadoghq.com}
-
-      # Unified Service Tagging
-      DD_ENV: ${DD_ENV:-dev}
-      DD_SERVICE: lattice
-      DD_VERSION: "0.1.0"
-
-      # APM Configuration
-      DD_APM_ENABLED: "true"
-      DD_APM_NON_LOCAL_TRAFFIC: "true"
-
-      # DogStatsD Configuration
-      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
-
-      # Logs Configuration
-      DD_LOGS_ENABLED: "true"
-      # Container collect all is set to false in datadog/datadog.yaml
-      # Only containers with com.datadoghq.ad.logs labels will be collected
-
-      # Process monitoring
-      DD_PROCESS_AGENT_ENABLED: "true"
-
-      # Docker integration
-      DD_DOCKER_LABELS_AS_TAGS: '{"com.docker.compose.service":"service"}'
-
-      # Hostname
-      DD_HOSTNAME: lattice-${DD_ENV:-local}
-
-      # Additional tags
-      DD_TAGS: "team:platform cloud:local region:local"
-
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /proc/:/host/proc/:ro
-      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - ./datadog/conf.d:/etc/datadog-agent/conf.d:ro
-      - ./datadog/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
-    ports:
-      - "8126:8126"  # APM trace receiver
-      - "8125:8125/udp"  # DogStatsD
-
   # ==========================================================================
   # OCR Worker
   # Consumes: lattice.ocr.request.v1
@@ -112,13 +55,10 @@ services:
       dockerfile: apps/workers/ocr-worker/Dockerfile
     container_name: lattice-ocr-worker
     labels:
-      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-ocr"}]'
       com.newrelic.logs: "true"
     environment:
-      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *datadog-env, *newrelic-env]
+      <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *newrelic-env]
       # Service identity
-      DD_SERVICE: lattice-worker-ocr
-      DD_VERSION: "0.1.0"
       NEW_RELIC_APP_NAME: lattice-worker-ocr
       # Lattice context
       LATTICE_DOMAIN: ocr
@@ -129,8 +69,8 @@ services:
       KAFKA_TOPIC_IN: lattice.ocr.request.v1
       KAFKA_TOPIC_OUT: lattice.ocr.result.v1
       KAFKA_TOPIC_DLQ: lattice.dlq.ocr.v1
-      # OCR text storage bucket - lattice-ocr-text
-      S3_OCR_TEXT_BUCKET: lattice-mail-raw
+      # OCR text storage bucket
+      S3_OCR_TEXT_BUCKET: ${S3_OCR_TEXT_BUCKET:-lattice-ocr-results}
       # Tesseract config
       TESSERACT_PATH: /usr/bin/tesseract
       TESSERACT_LANG: eng
@@ -146,3 +86,9 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - lattice-ocr-network
+
+networks:
+  lattice-ocr-network:
+    driver: bridge
