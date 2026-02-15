@@ -6,6 +6,7 @@
 #   - mail-chunker: Chunks parsed emails for embedding
 #   - mail-embedder: Generates embeddings for chunks and stores in Postgres
 #   - mail-upserter: Upserts embedding vectors to Milvus
+#   - es-upserter: Indexes embedding vectors to Elasticsearch Cloud (alias-filtered)
 #   - mail-extractor: Extracts text from PDF/DOCX attachments
 #   - attachment-chunker: Chunks extracted attachment text for embedding
 #   - mail-deleter: Handles email lifecycle deletions (vectors, postgres, storage)
@@ -252,6 +253,55 @@ services:
       HEALTH_PORT: 3000
     ports:
       - "3103:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lattice-network
+
+  # ==========================================================================
+  # ES Upserter Worker
+  # Consumes: lattice.mail.embed.v1 (same as mail-upserter, different group)
+  # Produces: lattice.es.upsert.v1
+  # ==========================================================================
+  es-upserter:
+    build:
+      context: ../../..
+      dockerfile: apps/workers/es-upserter/Dockerfile
+    container_name: lattice-es-upserter
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "lattice-worker-es-upserter"}]'
+      com.newrelic.logs: "true"
+    environment:
+      <<: [*common-env, *kafka-env, *postgres-env, *datadog-env, *newrelic-env]
+      # Service identity
+      DD_SERVICE: lattice-worker-es-upserter
+      DD_VERSION: "0.1.0"
+      NEW_RELIC_APP_NAME: lattice-worker-es-upserter
+      # Lattice context
+      LATTICE_DOMAIN: mail
+      LATTICE_STAGE: es-upsert
+      # Kafka topics (same input as mail-upserter, different consumer group)
+      KAFKA_CLIENT_ID: es-upserter
+      KAFKA_GROUP_ID: es-upserter-group
+      KAFKA_TOPIC_IN: lattice.mail.embed.v1
+      KAFKA_TOPIC_OUT: lattice.es.upsert.v1
+      KAFKA_TOPIC_DLQ: lattice.dlq.es.upsert.v1
+      # Elasticsearch Cloud
+      ELASTICSEARCH_CLOUD_ID: ${ELASTICSEARCH_CLOUD_ID:-}
+      ELASTICSEARCH_API_KEY: ${ELASTICSEARCH_API_KEY:-}
+      ELASTICSEARCH_INDEX: email_chunks_v1
+      ELASTICSEARCH_TIMEOUT_MS: "30000"
+      # Alias filter
+      ES_UPSERTER_ALIAS_PATTERN: ${ES_UPSERTER_ALIAS_PATTERN:-realty-*@woodcreek.me}
+      # Health
+      HEALTH_PORT: 3000
+    ports:
+      - "3108:3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
       interval: 30s
