@@ -21,6 +21,9 @@ export const TOPICS = {
 	OCR_REQUEST: "lattice.ocr.request.v1",
 	OCR_RESULT: "lattice.ocr.result.v1",
 
+	// ES pipeline topics
+	ES_UPSERT: "lattice.es.upsert.v1",
+
 	// Audit topics
 	AUDIT_EVENTS: "lattice.audit.events.v1",
 
@@ -34,6 +37,7 @@ export const TOPICS = {
 	DLQ_MAIL_ATTACHMENT_CHUNK: "lattice.dlq.mail.attachment.chunk.v1",
 	DLQ_MAIL_OCR: "lattice.dlq.mail.ocr.v1",
 	DLQ_OCR: "lattice.dlq.ocr.v1",
+	DLQ_ES_UPSERT: "lattice.dlq.es.upsert.v1",
 	DLQ_AUDIT_EVENTS: "lattice.dlq.audit.events.v1",
 } as const;
 
