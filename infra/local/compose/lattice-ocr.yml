@@ -58,7 +58,9 @@ services:
       com.newrelic.logs: "true"
     environment:
       <<: [*common-env, *kafka-env, *postgres-env, *storage-env, *newrelic-env]
-      # Service identity
+      # Service identity (DD_SERVICE required by worker-base config schema)
+      DD_SERVICE: lattice-worker-ocr
+      DD_VERSION: "0.1.0"
       NEW_RELIC_APP_NAME: lattice-worker-ocr
       # Lattice context
       LATTICE_DOMAIN: ocr
